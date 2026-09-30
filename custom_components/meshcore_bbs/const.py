@@ -79,3 +79,11 @@ DEFAULT_STALE_NEIGHBOR_DAYS: Final = 30
 # produce match what the upstream integration registered.
 CHANNEL_PREFIX: Final = "channel_"
 MESSAGES_SUFFIX: Final = "messages"
+
+# ─── Built-in BBS ───────────────────────────────────────────────────────────
+# Single process-wide store for BBS users, requests, posts, menus, settings.
+STORAGE_KEY_BBS: Final = "meshcore_bbs.bbs"
+# Fired whenever BBS data changes so the panel can refresh its view.
+EVENT_BBS_UPDATED: Final = "meshcore_bbs_updated"
+# Fired when a contact that is not on the BBS user list sends a DM.
+EVENT_BBS_REQUEST: Final = "meshcore_bbs_request"

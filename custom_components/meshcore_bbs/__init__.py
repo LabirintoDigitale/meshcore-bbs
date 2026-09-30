@@ -40,6 +40,8 @@ from .const import (
     EVENT_MESHCORE_MESSAGE,
     MESHCORE_DOMAIN,
 )
+from .bbs import Bbs
+from .bbs_ws import async_register_bbs_commands
 from .channel_scopes import ChannelScopeStore
 from .message_store import MessageStore
 from .panel import async_register_panel, async_remove_panel
@@ -210,11 +212,19 @@ async def async_setup_entry(
         await scopes.async_load()
         bucket["channel_scopes"] = scopes
 
+    # Built-in BBS: a process-wide singleton like the stores above. It
+    # answers direct messages only once the user enables it in the panel.
+    if "bbs" not in bucket:
+        bbs = Bbs(hass)
+        await bbs.async_load()
+        bucket["bbs"] = bbs
+
     # Register WS commands once (idempotent registration would be ideal but
     # HA's websocket_api raises on duplicate types — guard with a flag on the
     # domain bucket so multiple config entries don't collide).
     if not bucket.get("_ws_registered"):
         async_register_ws_commands(hass)
+        async_register_bbs_commands(hass)
         bucket["_ws_registered"] = True
 
     # One-shot detection of the upstream meshcore service surface this
@@ -237,6 +247,10 @@ async def async_setup_entry(
     entry.async_on_unload(hass.bus.async_listen(
         EVENT_MESHCORE_MESSAGE,
         _make_message_handler(hass, entry.entry_id),
+    ))
+    entry.async_on_unload(hass.bus.async_listen(
+        EVENT_MESHCORE_MESSAGE,
+        bucket["bbs"].async_handle_event,
     ))
     entry.async_on_unload(hass.bus.async_listen(
         EVENT_MESHCORE_DELIVERY_UPDATE,
@@ -316,6 +330,11 @@ async def async_unload_entry(
         # lose read positions on routine integration restarts.
         if tracker is not None:
             tracker.clear()
+        # Persist BBS data and drop the singleton so a re-added entry
+        # reloads it from disk.
+        bbs = bucket.pop("bbs", None)
+        if bbs is not None:
+            await bbs.async_shutdown()
 
     return True
 
