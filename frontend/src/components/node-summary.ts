@@ -9,6 +9,7 @@ import {
   type SensorEval,
 } from '../utils/sensor-thresholds';
 import { longPress } from '../directives/long-press';
+import { fetchLastNonZeroReading, type AirtimeReading } from '../utils/airtime-history';
 import './stat-bar';
 import './stacked-bar';
 import './info-tip';
@@ -89,6 +90,11 @@ export class NodeSummary extends LitElement {
   /** Guard: the nb_sent entity_id the current _rateHistory was fetched for,
    *  so we fetch once per device rather than on every hass state push. */
   private _rateHistoryKey: string | null = null;
+  // Last non-zero airtime-utilization reading per entity, used while the
+  // live sensor reads 0 because upstream has only one repeater poll.
+  @state() private _airtimeFallback: Record<string, AirtimeReading | null> = {};
+  // entity_id -> "<entity_id>@<last_updated>" already looked up.
+  private _airtimeFetchKeys: Record<string, string> = {};
 
   static styles = css`
     /* container-type lets the sensor grid's @container query react to this
@@ -163,6 +169,13 @@ export class NodeSummary extends LitElement {
 
     /* Radio activity legend (matches the stacked-bar inline legend
        layout used by Messages Sent / Received) */
+    .ra-history-note {
+      margin-top: 4px;
+      font-size: 11px;
+      font-style: italic;
+      color: var(--secondary-text-color);
+    }
+
     .ra-legend {
       display: flex;
       flex-wrap: wrap;
@@ -417,6 +430,7 @@ export class NodeSummary extends LitElement {
   updated(changed: Map<string, unknown>) {
     if (!this.hass || !this.device) return;
     if (!changed.has('hass') && !changed.has('device') && !changed.has('entities')) return;
+    this._maybeFetchAirtimeHistory();
     const nbSent = this._findEntityIdMatching('nb_sent');
     const key = nbSent?.entity_id ?? null;
     if (key && key !== this._rateHistoryKey) {
@@ -600,14 +614,45 @@ export class NodeSummary extends LitElement {
     `;
   }
 
+  /**
+   * Upstream reports 0 airtime utilization until it has two consecutive
+   * repeater polls (so after every HA restart). For each utilization
+   * sensor that reads exactly 0, look up its last non-zero value in the
+   * recorder history — once per state update.
+   */
+  private _maybeFetchAirtimeHistory() {
+    if (!this.hass || this.device?.type !== 'repeater') return;
+    for (const metric of ['tx_airtime_util', 'rx_airtime_util'] as const) {
+      const info = this._findByMetric(metric);
+      if (!info || this._readNumber(info.entity_id) !== 0) continue;
+      const eid = info.entity_id;
+      const key = `${eid}@${this.hass.states[eid]?.last_updated ?? ''}`;
+      if (this._airtimeFetchKeys[eid] === key) continue;
+      this._airtimeFetchKeys[eid] = key;
+      fetchLastNonZeroReading(this.hass, eid)
+        .then((reading) => { this._airtimeFallback = { ...this._airtimeFallback, [eid]: reading }; })
+        .catch(() => { this._airtimeFallback = { ...this._airtimeFallback, [eid]: null }; });
+    }
+  }
+
+  /** Live value, or the last non-zero reading from history when live is 0. */
+  private _airtimeValue(info: EntityInfo | undefined): { value: number; historyTs: number | null } {
+    if (!info) return { value: 0, historyTs: null };
+    const live = this._readNumber(info.entity_id);
+    const fallback = this._airtimeFallback[info.entity_id];
+    if (live === 0 && fallback) return { value: fallback.value, historyTs: fallback.ts };
+    return { value: Number.isFinite(live) ? Math.max(0, live) : 0, historyTs: null };
+  }
+
   private _renderRadioActivityTile() {
     const tx = this._findByMetric('tx_airtime_util');
     const rx = this._findByMetric('rx_airtime_util');
     if (!tx && !rx) return nothing;
-    const txVal = tx ? this._readNumber(tx.entity_id) : 0;
-    const rxVal = rx ? this._readNumber(rx.entity_id) : 0;
-    const txN = Number.isFinite(txVal) ? Math.max(0, txVal) : 0;
-    const rxN = Number.isFinite(rxVal) ? Math.max(0, rxVal) : 0;
+    const txRead = this._airtimeValue(tx);
+    const rxRead = this._airtimeValue(rx);
+    const txN = txRead.value;
+    const rxN = rxRead.value;
+    const historyTs = Math.max(txRead.historyTs ?? 0, rxRead.historyTs ?? 0) || null;
     const idleN = Math.max(0, 100 - txN - rxN);
 
     // Use the worse of the two airtime bands as the dot.
@@ -678,6 +723,12 @@ export class NodeSummary extends LitElement {
               <span class="legend-swatch idle"></span>Idle ${idleN.toFixed(1)}%
             </span>
           </div>
+          ${historyTs ? html`<div class="ra-history-note"
+              title="The repeater has been polled only once since the last update of this sensor, so it reads 0%. Showing the last real reading from history.">
+              Last reading · ${new Date(historyTs).toLocaleString(undefined, {
+                day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
+              })}
+            </div>` : nothing}
         </div>
       </div>
     `;

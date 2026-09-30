@@ -4,6 +4,10 @@ All notable changes to **MeshCore BBS for Home Assistant** are documented here. 
 
 ## [Unreleased]
 
+### Fixed
+
+- **Repeater Radio activity no longer stuck at 0%.** The upstream meshcore integration computes a repeater's airtime utilization from two consecutive status polls, so it reports 0% after every Home Assistant restart until the second poll arrives (often an hour or more). While a utilization sensor reads 0, the Devices tab tile now shows the last real reading from the recorder history, marked "Last reading · <date time>".
+
 ## [0.5.2] - 2026-09-30
 
 ### Added
