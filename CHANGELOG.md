@@ -4,6 +4,18 @@ All notable changes to **MeshCore BBS for Home Assistant** are documented here. 
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-09-30
+
+First release of **MeshCore BBS**, a fork of [meshcore-ha-chat](https://github.com/mwolter805/meshcore-ha-chat) by mwolter805. Releases 0.3.1 and earlier below are from the original project (published as "MeshCore Chat").
+
+### Changed
+
+- **Project renamed to MeshCore BBS.** The integration domain is now `meshcore_bbs` (folder `custom_components/meshcore_bbs/`), the sidebar panel is "MeshCore BBS" at `/meshcore-bbs`, and message storage uses `.storage/meshcore_bbs.*` keys. This is a new integration from Home Assistant's point of view: the message archive of an existing MeshCore Chat install (`.storage/meshcore_chat.*`) is not migrated.
+
+### Fixed
+
+- **Managed devices list on Home Assistant 2026.9.** The repeater firmware lookup no longer calls the deprecated `device_registry.async_get_device`, which raises on HA 2026.9; it now uses `async_get_device_by_identifier` scoped to the owning meshcore config entry, with a fallback for older HA versions.
+
 ## [0.3.1] - 2026-06-24
 
 ### Fixed
