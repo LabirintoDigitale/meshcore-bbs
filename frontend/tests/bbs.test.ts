@@ -12,7 +12,7 @@ function snapshot(overrides: Partial<BbsSnapshot> = {}): BbsSnapshot {
   return {
     settings: {
       enabled: true, name: 'BBS', main_menu: 1, max_len: 140, session_ttl: 600,
-      posts_shown: 3, reply_denied: true, denied_every: 300, denied_text: 'auto',
+      posts_shown: 3, reply_denied: true, denied_every: 300, denied_text: 'auto', denied_info: true,
       admin_prefix: '!', admin_page: 5, notify_service: '',
     },
     users: [

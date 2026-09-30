@@ -4,6 +4,12 @@ All notable changes to **MeshCore BBS for Home Assistant** are documented here. 
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-09-30
+
+### Added
+
+- **Reception info in the BBS auto-reply.** Contacts without access now get a second line after the auto-reply text with the hops, SNR (and RSSI when known) and the time their message was received, e.g. `Route: 0 hop · SNR: 13.75 · Ricevuto: 30/09/2026 14:27:40`. Toggle it with **Settings → BBS → Add reception info to the auto-reply** (on by default). An empty auto-reply text now sends nothing.
+
 ## [0.5.1] - 2026-09-30
 
 ### Added

@@ -252,6 +252,14 @@ export class BbsSettingsCard extends LitElement {
               @input=${(e: Event) => this._set('denied_text', (e.target as HTMLInputElement).value)}>
           </div>
           <div class="full">
+            <label class="check">
+              <input type="checkbox" .checked=${this._value('denied_info') ?? true}
+                @change=${(e: Event) => this._set('denied_info', (e.target as HTMLInputElement).checked)}>
+              Add reception info to the auto-reply
+            </label>
+            <div class="hint">Appends a line like “Route: 0 hop · SNR: 13.75 · Ricevuto: 30/09/2026 14:27:40”.</div>
+          </div>
+          <div class="full">
             <label>Notify service for messages from contacts without access</label>
             <input type="text" placeholder="notify.mobile_app_my_phone" .value=${this._value('notify_service')}
               @input=${(e: Event) => this._set('notify_service', (e.target as HTMLInputElement).value)}>

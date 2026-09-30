@@ -190,7 +190,7 @@ Keys `m`, `menu` and `?` are reserved (they re-show the current menu). **Check**
 
 **Mesh admin commands.** A BBS admin can send these as a direct message (prefix configurable): `!help`, `!utenti [page]`, `!info <key|name>`, `!add <key> <name>`, `!del <key|name>`, `!on` / `!off <key|name>`, `!admin <key|name> si|no`, `!richieste [page]`, `!ok <key> [name]`, `!no <key>`, `!post [page]`, `!delpost <id>`.
 
-**Contacts without access** are recorded as requests. Depending on the settings they get an auto-reply (at most once per *auto-reply interval*), and the message is sent to the configured `notify.*` service. The `meshcore_bbs_request` event (`pubkey`, `name`, `text`) is always fired, so you can build your own automations on it.
+**Contacts without access** are recorded as requests. Depending on the settings they get an auto-reply (at most once per *auto-reply interval*) — optionally followed by a line with the hops, SNR and reception time of their message — and the message is sent to the configured `notify.*` service. The `meshcore_bbs_request` event (`pubkey`, `name`, `text`) is always fired, so you can build your own automations on it.
 
 BBS data lives in `/config/.storage/meshcore_bbs.bbs`.
 

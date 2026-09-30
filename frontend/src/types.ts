@@ -389,6 +389,8 @@ export interface BbsSettings {
   reply_denied: boolean;
   denied_every: number;
   denied_text: string;
+  /** Append hops / SNR / reception time to the auto-reply. */
+  denied_info: boolean;
   admin_prefix: string;
   admin_page: number;
   notify_service: string;

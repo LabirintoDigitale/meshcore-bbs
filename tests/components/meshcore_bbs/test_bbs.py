@@ -121,13 +121,32 @@ async def test_set_menus_rejects_invalid_and_keeps_old(bbs: Bbs) -> None:
 
 
 async def test_unknown_contact_gets_denied_reply_once(bbs: Bbs) -> None:
-    replies, authorized = bbs.process(STRANGER, "Carl", "ciao")
+    replies, authorized = bbs.process(STRANGER, "Carl", "ciao", {"hop_count": 0, "snr": 13.75})
     assert authorized is False
-    assert replies == ["Risposta automatica, messaggio ricevuto."]
+    assert len(replies) == 1
+    text, info = replies[0].split("\n")
+    assert text == "Risposta automatica, messaggio ricevuto."
+    assert info.startswith("Route: 0 hop · SNR: 13.75 · Ricevuto: ")
     # Rate-limited within denied_every
     assert bbs.process(STRANGER, "Carl", "ancora") == ([], False)
     req = bbs.data["requests"][STRANGER]
     assert req["hits"] == 2 and req["last_text"] == "ancora" and req["name"] == "Carl"
+
+
+async def test_denied_reply_without_info_or_text(bbs: Bbs) -> None:
+    bbs.update_settings({"denied_info": False})
+    assert bbs.process(STRANGER, "Carl", "ciao", {"snr": 5})[0] == [
+        "Risposta automatica, messaggio ricevuto."
+    ]
+    bbs.update_settings({"denied_text": "", "denied_every": 0})
+    assert bbs.process(STRANGER, "Carl", "ciao") == ([], False)
+
+
+def test_reception_info_skips_unknown_values() -> None:
+    info = Bbs.reception_info({"hop_count": 255, "snr": None, "path_len": 3})
+    assert info.startswith("Ricevuto: ")
+    info = Bbs.reception_info({"path_len": 3, "snr": -4.5, "rssi": -110})
+    assert info.startswith("Route: 3 hop · SNR: -4.5 · RSSI: -110 · Ricevuto: ")
 
 
 async def test_inactive_user_is_treated_as_unknown(bbs: Bbs) -> None:

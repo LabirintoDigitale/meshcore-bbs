@@ -68,6 +68,8 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "reply_denied": True,
     "denied_every": 300,
     "denied_text": "Risposta automatica, messaggio ricevuto.",
+    # Append hops / SNR / reception time to the auto-reply.
+    "denied_info": True,
     "admin_prefix": "!",
     "admin_page": 5,
     "notify_service": "",
@@ -852,7 +854,32 @@ class Bbs:
 
     # ── inbound message processing ──
 
-    def process(self, pk: str, name: str, text: str) -> tuple[list[str], bool]:
+    @staticmethod
+    def reception_info(meta: dict[str, Any] | None) -> str:
+        """'Route: 2 hop · SNR: 13.75 · Ricevuto: 30/09/2026 14:27:40'.
+
+        Built from the ``meshcore_message`` event: DMs carry ``hop_count``
+        (or ``path_len``) and ``snr`` at the top level. Missing values are
+        left out; the reception time is when the BBS handled the message.
+        """
+        meta = meta or {}
+        parts = []
+        hops = meta.get("hop_count", meta.get("path_len"))
+        # 0xFF / negative mean "direct route, length unknown" in MeshCore.
+        if isinstance(hops, int) and 0 <= hops < 64:
+            parts.append(f"Route: {hops} hop")
+        snr = meta.get("snr")
+        if isinstance(snr, (int, float)) and not isinstance(snr, bool):
+            parts.append(f"SNR: {snr:g}")
+        rssi = meta.get("rssi")
+        if isinstance(rssi, (int, float)) and not isinstance(rssi, bool):
+            parts.append(f"RSSI: {rssi:g}")
+        parts.append("Ricevuto: " + dt_util.now().strftime("%d/%m/%Y %H:%M:%S"))
+        return " · ".join(parts)
+
+    def process(
+        self, pk: str, name: str, text: str, meta: dict[str, Any] | None = None
+    ) -> tuple[list[str], bool]:
         """Return (replies, authorized) for a direct message from ``pk``."""
         found = self.find_user(pk)
         if found is None:
@@ -864,7 +891,12 @@ class Bbs:
             if sess and time.time() - sess[1] < self.settings["denied_every"]:
                 return [], False
             self._set_state(key, "denied")
-            return [str(self.settings["denied_text"])], False
+            reply = str(self.settings["denied_text"]).strip()
+            if not reply:
+                return [], False
+            if self.settings.get("denied_info", True):
+                reply += "\n" + self.reception_info(meta)
+            return self.split([reply]), False
         upk, user = found
         return self.split(self.handle(upk, user, text)), True
 
@@ -909,7 +941,7 @@ class Bbs:
         text = str(data.get("text") or data.get("message") or "")
         name = str(data.get("sender_name") or "")
         try:
-            replies, authorized = self.process(pk, name, text)
+            replies, authorized = self.process(pk, name, text, data)
         except Exception:  # pragma: no cover - defensive
             _LOGGER.exception("BBS failed to process a message from %s", pk)
             replies, authorized = ["Errore temporaneo della BBS, riprova."], True
