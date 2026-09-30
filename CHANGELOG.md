@@ -4,6 +4,12 @@ All notable changes to **MeshCore BBS for Home Assistant** are documented here. 
 
 ## [Unreleased]
 
+## [0.5.6] - 2026-09-30
+
+### Added
+
+- **Contact details from the chat list.** Clicking the round avatar of a contact in the chat list opens its details — the same dialog as the Nodes tab, with Message, Trace, Remove Contact, the BBS section and the contact information. Clicking the name still opens the conversation.
+
 ## [0.5.5] - 2026-09-30
 
 ### Changed

@@ -858,6 +858,7 @@ export class MeshCorePanel extends LitElement {
             .selectedId=${this._pendingChatTarget}
             .narrow=${this.narrow}
             @active-entity-changed=${this._onActiveEntityChanged}
+            @node-action=${this._handleNodeAction}
             @contacts-changed=${() => this._loadDeviceData()}
             @channels-changed=${() => this._loadDeviceData()}></meshcore-bbs-page>`;
       case 'devices':

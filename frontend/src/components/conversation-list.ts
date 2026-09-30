@@ -169,6 +169,18 @@ export class ConversationList extends LitElement {
       background: var(--accent-color, #ff9800);
     }
 
+    /* Contact avatars open the contact details (see _onAvatarClick). */
+    .conversation-avatar.contact {
+      cursor: pointer;
+      transition: box-shadow 0.15s;
+    }
+
+    .conversation-avatar.contact:hover,
+    .conversation-avatar.contact:focus-visible {
+      box-shadow: 0 0 0 3px rgba(var(--rgb-primary-color, 3, 169, 244), 0.35);
+      outline: none;
+    }
+
     .conversation-info {
       flex: 1;
       overflow: hidden;
@@ -390,7 +402,12 @@ export class ConversationList extends LitElement {
         @click=${() => this.dispatchEvent(
           new CustomEvent('conversation-selected', { detail: { id, isContact } }),
         )}>
-        <div class="conversation-avatar ${isContact ? '' : 'channel'}">${avatar}</div>
+        ${isContact
+          ? html`<div class="conversation-avatar contact" role="button" tabindex="-1"
+              title="Contact details" aria-label="Contact details for ${name}"
+              @click=${(e: Event) => this._onAvatarClick(e, id)}
+              @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') this._onAvatarClick(e, id); }}>${avatar}</div>`
+          : html`<div class="conversation-avatar channel">${avatar}</div>`}
         <div class="conversation-info">
           <div class="conversation-name">${name}${isContact ? html`<meshcore-bbs-badge .pubkey=${id}></meshcore-bbs-badge>` : ''}</div>
           <div class="conversation-detail">${detail}</div>
@@ -400,6 +417,17 @@ export class ConversationList extends LitElement {
           : html`<span class="chevron" aria-hidden="true">›</span>`}
       </div>
     `;
+  }
+
+  /** Avatar of a contact row: open its details instead of the conversation. */
+  private _onAvatarClick(e: Event, pubkeyPrefix: string) {
+    e.preventDefault();
+    e.stopPropagation();
+    this.dispatchEvent(new CustomEvent('contact-details-requested', {
+      detail: { pubkeyPrefix },
+      bubbles: true,
+      composed: true,
+    }));
   }
 
   private _getUnreadCount(id: string): number {

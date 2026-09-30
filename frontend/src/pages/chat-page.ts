@@ -16,6 +16,7 @@ import '../components/message-bubble';
 import '../components/message-search';
 import '../components/bbs-badge';
 import '../components/bbs-actions';
+import '../components/node-detail-dialog';
 
 @customElement('meshcore-bbs-page')
 export class ChatPage extends LitElement {
@@ -64,6 +65,8 @@ export class ChatPage extends LitElement {
   @state() private _manageInitialTab: 'contacts' | 'channels' = 'contacts';
   @state() private _searchOpen = false;
   @state() private _bbsPopupOpen = false;
+  // Contact whose details dialog is open (avatar click in the list).
+  @state() private _detailContact: Contact | null = null;
   @state() private _currentEntityId: string | null = null;
   @state() private _conversationResolved = false;
   @state() private _pendingScroll: 'bottom' | 'last-read' | null = null;
@@ -734,7 +737,9 @@ export class ChatPage extends LitElement {
                 this.selectedId = newId;
                 this._narrowShowMessages = true;
               }}
+              @contact-details-requested=${this._onContactDetailsRequested}
               @manage-requested=${() => this._onManageRequested()}></meshcore-conversation-list>
+            ${this._renderContactDetails()}
             ${this._manageOpen ? html`
               <meshcore-manage-dialog
                 .hass=${this.hass}
@@ -769,7 +774,9 @@ export class ChatPage extends LitElement {
             }
             this.selectedId = newId;
           }}
+          @contact-details-requested=${this._onContactDetailsRequested}
           @manage-requested=${() => this._onManageRequested()}></meshcore-conversation-list>
+        ${this._renderContactDetails()}
         <div class="chat-main">
           ${this.selectedId ? html`
             <div class="narrow-header" style="display: flex; align-items: center; padding: 8px 16px;">
@@ -1225,6 +1232,52 @@ export class ChatPage extends LitElement {
       this._inputText = mention + this._inputText;
       this.requestUpdate();
     }
+  }
+
+  /** Contact avatar clicked in the list: open its details dialog. */
+  private _onContactDetailsRequested = (e: CustomEvent) => {
+    const prefix = (e.detail as { pubkeyPrefix: string }).pubkeyPrefix;
+    const contact = this.conversations.find(
+      (c) => 'pubkey_prefix' in c && (c as Contact).pubkey_prefix === prefix,
+    ) as Contact | undefined;
+    if (contact) this._detailContact = contact;
+  };
+
+  /**
+   * Same node detail dialog as the Nodes tab. Its actions are re-emitted
+   * as `node-action`, which the panel handles for every page (message,
+   * trace, add/remove contact).
+   */
+  private _renderContactDetails() {
+    const node = this._detailContact;
+    const close = () => { this._detailContact = null; };
+    const forward = (action: string) => {
+      this.dispatchEvent(new CustomEvent('node-action', {
+        detail: { action, node },
+        bubbles: true,
+        composed: true,
+      }));
+      if (action === 'message' || action === 'trace') close();
+    };
+    return html`
+      <meshcore-node-detail-dialog
+        .hass=${this.hass}
+        .node=${node ?? undefined}
+        ?open=${!!node}
+        @node-detail-closed=${close}
+        @node-message=${(e: Event) => {
+          // Already on the chat tab: open the conversation directly.
+          e.stopPropagation();
+          if (node) {
+            this.selectedId = node.pubkey_prefix;
+            this._narrowShowMessages = true;
+          }
+          close();
+        }}
+        @node-trace=${(e: Event) => { e.stopPropagation(); forward('trace'); }}
+        @node-add-contact=${(e: Event) => { e.stopPropagation(); forward('add-contact'); }}
+        @node-remove-contact=${(e: Event) => { e.stopPropagation(); forward('remove-contact'); }}>
+      </meshcore-node-detail-dialog>`;
   }
 
   /** Pubkey prefix of the selected conversation when it is a DM. */
