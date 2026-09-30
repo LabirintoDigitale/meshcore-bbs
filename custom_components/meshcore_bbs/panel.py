@@ -1,13 +1,13 @@
-"""MeshCore Chat sidebar panel registration.
+"""MeshCore BBS sidebar panel registration.
 
 Adapted from the upstream meshcore integration's panel registration.
 
 Differences vs. upstream:
-- All HTTP/sidebar URLs are scoped under `meshcore_chat` so the companion
+- All HTTP/sidebar URLs are scoped under `meshcore_bbs` so the companion
   panel co-exists with upstream's panel if both are installed.
-- Sidebar title is "MeshCore Chat" so users can tell the two apart.
+- Sidebar title is "MeshCore BBS" so users can tell the two apart.
 - Module-URL filename matches the renamed entry point
-  (`meshcore-chat-panel.js`, produced by the rollup config).
+  (`meshcore-bbs-panel.js`, produced by the rollup config).
 """
 from __future__ import annotations
 
@@ -37,21 +37,21 @@ _LOGGER = logging.getLogger(__name__)
 _static_path_registered = False
 
 # HTTP URL the bundle is served at; module_url below points at this path.
-PANEL_URL = "/meshcore_chat_panel/meshcore-chat-panel.js"
+PANEL_URL = "/meshcore_bbs_panel/meshcore-bbs-panel.js"
 # Filesystem path to the bundle. Lives flat at the integration root since
 # the rollup output is a single file (no chunks, no source maps, no other
 # assets); a wrapper directory would add nothing.
-PANEL_FRONTEND_PATH = str(Path(__file__).parent / "meshcore-chat-panel.js")
+PANEL_FRONTEND_PATH = str(Path(__file__).parent / "meshcore-bbs-panel.js")
 
 PANEL_ICON = "mdi:radio-handheld"
-PANEL_TITLE = "MeshCore Chat"
+PANEL_TITLE = "MeshCore BBS"
 
-# Sidebar URL slug — the panel will be reachable at /meshcore-chat in the HA UI.
-PANEL_URL_PATH = "meshcore-chat"
+# Sidebar URL slug — the panel will be reachable at /meshcore-bbs in the HA UI.
+PANEL_URL_PATH = "meshcore-bbs"
 
 
 async def async_register_panel(hass: HomeAssistant) -> None:
-    """Register the MeshCore Chat sidebar panel.
+    """Register the MeshCore BBS sidebar panel.
 
     Static-path registration is gated on the module-level
     `_static_path_registered` flag — it runs exactly once per HA process
@@ -66,7 +66,7 @@ async def async_register_panel(hass: HomeAssistant) -> None:
             [StaticPathConfig(PANEL_URL, PANEL_FRONTEND_PATH, cache_headers=False)]
         )
         _static_path_registered = True
-        _LOGGER.debug("Registered MeshCore Chat panel static path %s", PANEL_URL)
+        _LOGGER.debug("Registered MeshCore BBS panel static path %s", PANEL_URL)
     async_register_built_in_panel(
         hass,
         component_name="custom",
@@ -75,17 +75,17 @@ async def async_register_panel(hass: HomeAssistant) -> None:
         frontend_url_path=PANEL_URL_PATH,
         config={
             "_panel_custom": {
-                "name": "meshcore-chat-panel",
+                "name": "meshcore-bbs-panel",
                 "module_url": PANEL_URL,
             }
         },
         require_admin=False,
     )
-    _LOGGER.debug("Registered MeshCore Chat sidebar panel")
+    _LOGGER.debug("Registered MeshCore BBS sidebar panel")
 
 
 async def async_remove_panel(hass: HomeAssistant) -> None:
-    """Remove the MeshCore Chat sidebar panel.
+    """Remove the MeshCore BBS sidebar panel.
 
     The static path registered in `async_register_panel` is intentionally
     NOT torn down — `hass.http` has no public unregister API, and aiohttp
@@ -95,4 +95,4 @@ async def async_remove_panel(hass: HomeAssistant) -> None:
     static paths are process-lifetime, sidebar entries are entry-lifetime.
     """
     frontend_async_remove_panel(hass, PANEL_URL_PATH)
-    _LOGGER.debug("Removed MeshCore Chat sidebar panel")
+    _LOGGER.debug("Removed MeshCore BBS sidebar panel")

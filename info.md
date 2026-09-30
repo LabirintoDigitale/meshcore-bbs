@@ -1,10 +1,10 @@
-# MeshCore Chat
+# MeshCore BBS
 
 Sidebar chat panel and persistent message store for the MeshCore mesh radio network.
 
 A **companion** integration: works alongside the [core meshcore integration](https://github.com/meshcore-dev/meshcore-ha) without modifying it. Install both.
 
-![MeshCore Chat panel](https://raw.githubusercontent.com/mwolter805/meshcore-ha-chat/main/assets/screenshots/chat-tab.jpg)
+![MeshCore BBS panel](https://raw.githubusercontent.com/LabirintoDigitale/meshcore-bbs/main/assets/screenshots/chat-tab.jpg)
 
 **Features:**
 

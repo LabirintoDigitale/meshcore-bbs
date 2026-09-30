@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to **MeshCore Chat for Home Assistant** are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/) loosely; entries are most-recent-first.
+All notable changes to **MeshCore BBS for Home Assistant** are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/) loosely; entries are most-recent-first.
 
 ## [Unreleased]
 
@@ -126,7 +126,7 @@ A pre-public-release audit landed for this version:
 
 ### Installation
 
-Via HACS — see the [README's Installation section](./README.md#installation). After install, restart HA and add the integration from **Settings → Devices & Services → Add Integration → MeshCore Chat**.
+Via HACS — see the [README's Installation section](./README.md#installation). After install, restart HA and add the integration from **Settings → Devices & Services → Add Integration → MeshCore BBS**.
 
 ### Known issues
 

@@ -13,7 +13,7 @@ import './pages/settings-page';
 import './components/trace-dialog';
 import './components/target-picker';
 
-@customElement('meshcore-chat-panel')
+@customElement('meshcore-bbs-panel')
 export class MeshCorePanel extends LitElement {
   @property({ type: Object }) hass?: HomeAssistant;
   @property({ type: Boolean, reflect: true }) narrow = false;
@@ -720,7 +720,7 @@ export class MeshCorePanel extends LitElement {
                   <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>
                 </button>`
               : html``}
-            <div class="panel-title">MeshCore Chat</div>
+            <div class="panel-title">MeshCore BBS</div>
           </div>
           <div class="header-right">
             ${device && this._getNodeStatus(device) !== null
@@ -844,7 +844,7 @@ export class MeshCorePanel extends LitElement {
     switch (this._activeTab) {
       case 'chat':
         return html`
-          <meshcore-chat-page
+          <meshcore-bbs-page
             .hass=${this.hass}
             .config=${this._config}
             .conversations=${[...this._channels, ...this._contacts.filter(c => c.added_to_node)]}
@@ -853,7 +853,7 @@ export class MeshCorePanel extends LitElement {
             .narrow=${this.narrow}
             @active-entity-changed=${this._onActiveEntityChanged}
             @contacts-changed=${() => this._loadDeviceData()}
-            @channels-changed=${() => this._loadDeviceData()}></meshcore-chat-page>`;
+            @channels-changed=${() => this._loadDeviceData()}></meshcore-bbs-page>`;
       case 'devices':
         return html`
           <meshcore-devices-page
@@ -1244,6 +1244,6 @@ export class MeshCorePanel extends LitElement {
 
 declare global {
   interface HTMLElementTagNameMap {
-    'meshcore-chat-panel': MeshCorePanel;
+    'meshcore-bbs-panel': MeshCorePanel;
   }
 }

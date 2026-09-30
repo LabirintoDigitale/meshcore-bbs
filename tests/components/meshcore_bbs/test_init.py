@@ -1,4 +1,4 @@
-"""Unit tests for ``custom_components.meshcore_chat.__init__``.
+"""Unit tests for ``custom_components.meshcore_bbs.__init__``.
 
 Phase 4C of the HA Quality + Best Practices Remediation. Covers the
 event-handler dispatch surface — the four ``hass.bus`` listeners
@@ -8,7 +8,7 @@ registered by ``async_setup_entry`` and the small support helpers
 
 Tests follow the 4A/4B direct-instantiation pattern: a
 ``MockConfigEntry`` is registered against ``hass`` with its
-``runtime_data`` populated by hand to a ``MeshCoreChatRuntimeData``
+``runtime_data`` populated by hand to a ``MeshCoreBbsRuntimeData``
 holding a mocked ``MessageStore``. The handler factory functions are
 called directly to obtain the closures, which are then invoked with a
 hand-built ``Event`` object. ``async_setup_entry`` itself is not
@@ -29,8 +29,8 @@ from homeassistant.helpers import issue_registry as ir
 
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.meshcore_chat import (
-    MeshCoreChatRuntimeData,
+from custom_components.meshcore_bbs import (
+    MeshCoreBbsRuntimeData,
     _async_options_updated,
     _make_connection_state_handler,
     _make_delivery_update_handler,
@@ -41,7 +41,7 @@ from custom_components.meshcore_chat import (
     _upstream_meshcore_present,
     async_unload_entry,
 )
-from custom_components.meshcore_chat.const import DOMAIN, MESHCORE_DOMAIN
+from custom_components.meshcore_bbs.const import DOMAIN, MESHCORE_DOMAIN
 
 # ─── Fixtures ──────────────────────────────────────────────────────────
 
@@ -75,14 +75,14 @@ def config_entry(
     """Registered MockConfigEntry with runtime_data wired to mock_store."""
     entry = MockConfigEntry(
         domain=DOMAIN,
-        title="MeshCore Chat",
+        title="MeshCore BBS",
         entry_id="01TEST_ENTRY",
         data={},
         options={},
     )
     entry.add_to_hass(hass)
     # runtime_data is the post-2024.6 Bronze pattern (Phase 2 migration).
-    entry.runtime_data = MeshCoreChatRuntimeData(store=mock_store)
+    entry.runtime_data = MeshCoreBbsRuntimeData(store=mock_store)
     return entry
 
 
