@@ -4,6 +4,8 @@ All notable changes to **MeshCore BBS for Home Assistant** are documented here. 
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-09-30
+
 ### Added
 
 - **Built-in BBS.** Direct messages from authorised contacts get a menu-driven bulletin board system (board, posting, JSON menus with placeholders, session timeout, replies split to the mesh message length) — a port of the external MeshBBS 1.4.0 (PHP + MySQL + automation), which is no longer needed. Contacts without access are recorded as requests, can get a rate-limited auto-reply, trigger an optional `notify.*` service and always fire `meshcore_bbs_request`. BBS admins can manage users, requests and posts over the mesh with `!` commands. Data is stored in `.storage/meshcore_bbs.bbs`; the BBS starts disabled.
