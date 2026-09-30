@@ -6,6 +6,7 @@ import './bbs-badge';
 import './bbs-actions';
 import './route-dialog';
 import './telemetry-dialog';
+import './location-map';
 
 @customElement('meshcore-node-detail-dialog')
 export class NodeDetailDialog extends LitElement {
@@ -413,6 +414,10 @@ export class NodeDetailDialog extends LitElement {
                               <div class="info-value">${(this.node as Contact).adv_lon.toFixed(6)}</div>
                             </div>
                           </div>
+                          <meshcore-location-map style="margin-top: 8px;"
+                            .lat=${(this.node as Contact).adv_lat}
+                            .lon=${(this.node as Contact).adv_lon}
+                            .height=${200}></meshcore-location-map>
                         </div>
                       ` : html``}
 

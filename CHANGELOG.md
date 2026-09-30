@@ -4,6 +4,13 @@ All notable changes to **MeshCore BBS for Home Assistant** are documented here. 
 
 ## [Unreleased]
 
+## [0.6.3] - 2026-09-30
+
+### Added
+
+- **Satellite view.** Maps have a **Map / Satellite** switch (satellite imagery from Google Maps, no key needed) and links to open the position in OpenStreetMap or Google Maps. The choice is remembered in the browser.
+- **Map in the contact details.** The Location section of a contact now shows its advertised position on the map, not only the coordinates.
+
 ## [0.6.2] - 2026-09-30
 
 ### Changed

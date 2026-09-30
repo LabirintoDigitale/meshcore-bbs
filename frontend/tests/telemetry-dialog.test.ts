@@ -33,6 +33,12 @@ async function mount(callWS: ReturnType<typeof vi.fn>, contact = CONTACT): Promi
 
 const text = (el: Dlg) => el.shadowRoot!.textContent!.replace(/\s+/g, ' ');
 
+async function mapSrc(el: Dlg): Promise<string> {
+  const map = el.shadowRoot!.querySelector('meshcore-location-map') as HTMLElement & { updateComplete: Promise<unknown> };
+  await map.updateComplete;
+  return map.shadowRoot!.querySelector('iframe')!.getAttribute('src')!;
+}
+
 afterEach(() => { document.body.innerHTML = ''; });
 
 describe('telemetry helpers', () => {
@@ -67,7 +73,7 @@ describe('meshcore-telemetry-dialog', () => {
     expect(callWS).toHaveBeenCalledWith({ type: 'meshcore_bbs/request_telemetry', pubkey_prefix: '1d71d95287fc', entry_id: 'E1' });
     expect(text(el)).toContain('Temperature (ch 2)');
     expect(text(el)).toContain('Position (GPS, telemetry)');
-    expect(el.shadowRoot!.querySelector('iframe')!.getAttribute('src')).toContain('marker=46.020000,11.900000');
+    expect(await mapSrc(el)).toContain('marker=46.020000,11.900000');
   });
 
   it('shows the error and falls back to the advertised position', async () => {
@@ -75,7 +81,7 @@ describe('meshcore-telemetry-dialog', () => {
     const el = await mount(callWS);
     await vi.waitFor(() => expect(text(el)).toContain('No telemetry received'));
     expect(text(el)).toContain('Position (advertised)');
-    expect(el.shadowRoot!.querySelector('iframe')!.getAttribute('src')).toContain('marker=46.100000,12.200000');
+    expect(await mapSrc(el)).toContain('marker=46.100000,12.200000');
   });
 
   it('Refresh sends a new request', async () => {

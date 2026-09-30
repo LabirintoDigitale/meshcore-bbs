@@ -3,6 +3,8 @@ import { customElement, property, state } from 'lit/decorators.js';
 import { requestTelemetry, type LppValue, type TelemetryResult } from '../api';
 import type { Contact, HomeAssistant } from '../types';
 import { attachDialogA11y } from '../utils/dialog-a11y';
+import './location-map';
+export { osmEmbedUrl } from './location-map';
 
 const UNITS: Record<string, string> = {
   temperature: '°C',
@@ -73,12 +75,6 @@ export function formatLpp(v: LppValue): string {
     return Object.entries(v.value).map(([k, x]) => `${k}: ${x}`).join(', ');
   }
   return String(v.value);
-}
-
-/** OpenStreetMap embed around a point (no API key, no extra JS). */
-export function osmEmbedUrl(lat: number, lon: number, span = 0.01): string {
-  const bbox = [lon - span, lat - span * 0.6, lon + span, lat + span * 0.6].map((x) => x.toFixed(5)).join(',');
-  return `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${lat.toFixed(6)},${lon.toFixed(6)}`;
 }
 
 /**
@@ -189,13 +185,8 @@ export class TelemetryDialog extends LitElement {
                 </div>` : html`<div class="status">No sensor values in the answer.</div>`}` : nothing}
             ${pos ? html`
               <div class="label">Position ${pos.source === 'telemetry' ? '(GPS, telemetry)' : '(advertised)'}</div>
-              <iframe title="Map" loading="lazy" referrerpolicy="no-referrer"
-                src=${osmEmbedUrl(pos.lat, pos.lon)}></iframe>
-              <div class="map-meta">
-                <span>${pos.lat.toFixed(5)}, ${pos.lon.toFixed(5)}${pos.alt !== undefined ? ` · ${pos.alt} m` : ''}</span>
-                <a href="https://www.openstreetmap.org/?mlat=${pos.lat}&mlon=${pos.lon}#map=15/${pos.lat}/${pos.lon}"
-                  target="_blank" rel="noopener noreferrer">Open map ↗</a>
-              </div>` : !this._loading ? html`<div class="label">Position</div><div class="status">No position available.</div>` : nothing}
+              <meshcore-location-map .lat=${pos.lat} .lon=${pos.lon} .alt=${pos.alt} .height=${260}>
+              </meshcore-location-map>` : !this._loading ? html`<div class="label">Position</div><div class="status">No position available.</div>` : nothing}
           </div>
           <div class="foot">
             <button ?disabled=${this._loading} @click=${() => this._request()}>Refresh</button>
