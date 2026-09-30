@@ -1262,6 +1262,7 @@ export class ChatPage extends LitElement {
     return html`
       <meshcore-node-detail-dialog
         .hass=${this.hass}
+        .entryId=${this.config?.entry_id}
         .node=${node ?? undefined}
         ?open=${!!node}
         @node-detail-closed=${close}

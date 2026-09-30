@@ -4,6 +4,12 @@ All notable changes to **MeshCore BBS for Home Assistant** are documented here. 
 
 ## [Unreleased]
 
+## [0.5.8] - 2026-09-30
+
+### Added
+
+- **Direct-message route per contact.** A new **Route** button in the contact details (Nodes tab or the chat-list avatar) lets you choose, in order, the repeaters that direct messages to that contact go through, or **Reset to flood**. The route is written to the companion radio (`change_contact_path` / `reset_path`), with each hop sized to the radio's path hash mode. Channel messages always flood and are not affected.
+
 ## [0.5.7] - 2026-09-30
 
 ### Fixed

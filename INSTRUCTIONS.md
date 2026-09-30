@@ -151,6 +151,16 @@ The result view shows hops, total round-trip in ms, the per-hop path with SNR pe
 
 > **Note:** the trace dialog requires meshcore integration v2.6.0 or newer. On older versions the dialog reports a *"service not registered"* error.
 
+### Choosing the route of direct messages
+
+Direct messages to a contact follow the route the companion radio has stored for it (shown as *Route (Outgoing Path)* in the contact details). To force it through specific repeaters:
+
+1. Open the contact (Nodes tab, or click its round avatar in the chat list) → **Route**.
+2. Pick the repeaters in order — from your node towards the contact — and click **Save route**.
+3. **Reset to flood** returns the contact to automatic routing.
+
+Each repeater must be able to reach the next one; if a hop fails, the message is not delivered (no ACK). Channel messages always flood and are not affected. Only contacts added to the radio have a route. Admin only.
+
 ### Adjusting message retention
 
 The chat archive has two retention knobs that the panel UI doesn't expose — they live on Home Assistant's standard config-entry options dialog instead.

@@ -4,6 +4,7 @@ import type { Contact, ManagedDevice, HomeAssistant } from '../types';
 import { attachDialogA11y } from '../utils/dialog-a11y';
 import './bbs-badge';
 import './bbs-actions';
+import './route-dialog';
 
 @customElement('meshcore-node-detail-dialog')
 export class NodeDetailDialog extends LitElement {
@@ -14,6 +15,9 @@ export class NodeDetailDialog extends LitElement {
   // disabled and its label swaps to "Adding…" / "Removing…" so the user
   // gets feedback during the WS round-trip + coordinator refresh.
   @property({ type: String }) pendingAction: 'add-contact' | 'remove-contact' | null = null;
+  // Upstream meshcore entry the contact belongs to (route changes).
+  @property({ type: String }) entryId?: string;
+  @state() private _routeOpen = false;
 
   @state() private _confirming = false;
   @state() private _confirmAction: 'remove-contact' | null = null;
@@ -335,6 +339,10 @@ export class NodeDetailDialog extends LitElement {
                       ${isContact && (this.node as Contact).added_to_node && (isClient || isRoomServer) ? html`
                         <button class="action-btn" @click=${() => this._dispatchEvent('message')}><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/></svg>Message</button>
                       ` : html``}
+                      ${isContact && (this.node as Contact).added_to_node ? html`
+                        <button class="action-btn" title="Choose the repeaters direct messages go through"
+                          @click=${() => { this._routeOpen = true; }}><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M6 3a3 3 0 00-1 5.83V21h2V8.83A3 3 0 006 3zm12 12a3 3 0 00-2.83 2H10v2h5.17A3 3 0 1018 15zM9 7h6a2 2 0 010 4H11a4 4 0 000 8h-1v-2h1a2 2 0 010-4h4a4 4 0 000-8H9z"/></svg>Route</button>
+                      ` : html``}
                       ${prefix && !isClient ? html`
                         <button class="action-btn" @click=${() => this._dispatchEvent('trace')}><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M2 12a2 2 0 104 0 2 2 0 10-4 0zM10 12a2 2 0 104 0 2 2 0 10-4 0zM18 12a2 2 0 104 0 2 2 0 10-4 0zM7 10l3 2-3 2zM15 10l3 2-3 2z"/></svg>Trace</button>
                       ` : html``}
@@ -424,8 +432,29 @@ export class NodeDetailDialog extends LitElement {
           </div>
         </div>
       </div>
+      ${isContact ? html`
+        <meshcore-route-dialog
+          .hass=${this.hass}
+          .contact=${this.node as Contact}
+          .entryId=${this.entryId}
+          ?open=${this._routeOpen}
+          @route-dialog-closed=${(e: Event) => { e.stopPropagation(); this._routeOpen = false; }}
+          @route-changed=${this._onRouteChanged}></meshcore-route-dialog>` : html``}
     `;
   }
+
+  /** Reflect a saved route in the dialog without waiting for a contacts refresh. */
+  private _onRouteChanged = (e: CustomEvent) => {
+    const d = e.detail as { out_path: string; out_path_len: number; path_hash_mode: number };
+    if (this.node && 'adv_name' in this.node) {
+      this.node = {
+        ...(this.node as Contact),
+        out_path: d.out_path,
+        out_path_len: d.out_path_len,
+        out_path_hash_mode: d.out_path_len < 0 ? -1 : d.path_hash_mode,
+      };
+    }
+  };
 
   private _close() {
     this.open = false;

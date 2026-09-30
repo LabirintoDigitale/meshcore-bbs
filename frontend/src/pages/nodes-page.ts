@@ -512,6 +512,7 @@ export class NodesPage extends LitElement {
       <!-- Node detail dialog -->
       <meshcore-node-detail-dialog
         .hass=${this.hass}
+        .entryId=${this.config?.entry_id}
         .node=${this._selectedNode}
         .pendingAction=${this._pendingAction}
         ?open=${this._nodeDetailDialogOpen}

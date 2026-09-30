@@ -1014,3 +1014,32 @@ export function importBbsDump(
     dry_run: dryRun,
   });
 }
+
+// ─── Contact direct-message route ───────────────────────────────────────
+
+export interface ContactRouteResult {
+  out_path: string;
+  out_path_len: number;
+  path_hash_mode: number;
+}
+
+/**
+ * Route a contact's direct messages through `repeaters` (public keys or
+ * prefixes, in order), or reset it to flood with `reset` / an empty list.
+ * Admin-only; rejects with the native `{ code, message }` on failure.
+ */
+export function setContactRoute(
+  hass: HomeAssistant,
+  pubkeyPrefix: string,
+  repeaters: string[],
+  options: { reset?: boolean; entryId?: string } = {},
+): Promise<ContactRouteResult> {
+  const msg: Record<string, unknown> = {
+    type: 'meshcore_bbs/set_contact_route',
+    pubkey_prefix: pubkeyPrefix,
+    repeaters,
+    reset: options.reset ?? false,
+  };
+  if (options.entryId) msg.entry_id = options.entryId;
+  return hass.callWS<ContactRouteResult>(msg);
+}
