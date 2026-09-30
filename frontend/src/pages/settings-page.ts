@@ -752,12 +752,22 @@ export class SettingsPage extends LitElement {
           <div style="padding: 16px; color: var(--error-color); font-size: 14px;">
             ${this._error}
           </div>
+          <div class="settings-container">
+            <meshcore-bbs-settings .hass=${this.hass}></meshcore-bbs-settings>
+          </div>
         </div>
       `;
     }
 
     if (!this._deviceConfig) {
-      return html`<div>No device config loaded</div>`;
+      // The BBS does not depend on the radio config: keep it reachable.
+      return html`
+        <div class="settings-page">
+          <div class="settings-container">
+            <div style="padding: 16px 0; color: var(--secondary-text-color);">No device config loaded</div>
+            <meshcore-bbs-settings .hass=${this.hass}></meshcore-bbs-settings>
+          </div>
+        </div>`;
     }
 
     return html`

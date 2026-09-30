@@ -20,6 +20,9 @@ from homeassistant.components.frontend import (
 )
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.core import HomeAssistant
+from homeassistant.loader import async_get_integration
+
+from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -67,6 +70,11 @@ async def async_register_panel(hass: HomeAssistant) -> None:
         )
         _static_path_registered = True
         _LOGGER.debug("Registered MeshCore BBS panel static path %s", PANEL_URL)
+    # Version query string: the bundle filename never changes, so without
+    # it browsers (and the HA companion apps) keep running a cached copy
+    # of the previous release after an update.
+    integration = await async_get_integration(hass, DOMAIN)
+    module_url = f"{PANEL_URL}?v={integration.version}"
     async_register_built_in_panel(
         hass,
         component_name="custom",
@@ -76,7 +84,7 @@ async def async_register_panel(hass: HomeAssistant) -> None:
         config={
             "_panel_custom": {
                 "name": "meshcore-bbs-panel",
-                "module_url": PANEL_URL,
+                "module_url": module_url,
             }
         },
         require_admin=False,

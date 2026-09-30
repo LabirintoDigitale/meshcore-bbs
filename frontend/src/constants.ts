@@ -6,6 +6,12 @@ import type { PanelConfig } from './types';
 export const PANEL_TAG = 'meshcore-bbs-panel';
 
 /**
+ * Version of this bundle, from package.json (substituted at build time by
+ * rollup.config.mjs; left as the placeholder in unit tests).
+ */
+export const PANEL_VERSION = '__PANEL_VERSION__';
+
+/**
  * Regex patterns
  */
 export const CHANNEL_PREFIX_REGEX = /^<[^>]+>\s*/;

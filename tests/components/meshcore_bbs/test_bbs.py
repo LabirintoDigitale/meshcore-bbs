@@ -291,6 +291,11 @@ async def test_new_store_starts_disabled_with_default_menus(hass: HomeAssistant)
     assert validate_menus(b.data["menus"], b.settings["main_menu"]) == []
 
 
+async def test_snapshot_reports_integration_version(bbs: Bbs) -> None:
+    bbs.version = "9.9.9"
+    assert bbs.snapshot()["version"] == "9.9.9"
+
+
 def test_clean_pubkey() -> None:
     assert clean_pubkey(" AB:cd-12 ") == "abcd12"
 

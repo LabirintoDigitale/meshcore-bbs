@@ -31,6 +31,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers import issue_registry as ir
+from homeassistant.loader import async_get_integration
 
 from .const import (
     DOMAIN,
@@ -217,6 +218,7 @@ async def async_setup_entry(
     if "bbs" not in bucket:
         bbs = Bbs(hass)
         await bbs.async_load()
+        bbs.version = str((await async_get_integration(hass, DOMAIN)).version or "")
         bucket["bbs"] = bbs
 
     # Register WS commands once (idempotent registration would be ideal but

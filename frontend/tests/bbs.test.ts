@@ -4,6 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BbsState, bbsState, prefixesMatch } from '../src/bbs/bbs-state';
 import '../src/components/bbs-badge';
 import '../src/components/bbs-actions';
+import '../src/components/bbs-settings';
+import { PANEL_VERSION } from '../src/constants';
 import type { BbsSnapshot, HomeAssistant } from '../src/types';
 
 function snapshot(overrides: Partial<BbsSnapshot> = {}): BbsSnapshot {
@@ -208,5 +210,33 @@ describe('meshcore-bbs-actions', () => {
     await el.updateComplete;
     expect(buttons(el)).toEqual(['Remove', 'Cancel']);
     expect(other).not.toHaveBeenCalled();
+  });
+});
+
+describe('meshcore-bbs-settings version line', () => {
+  afterEach(() => {
+    document.body.innerHTML = '';
+    bbsState.detach();
+    bbsState.setSnapshot(null);
+  });
+
+  async function mountWithVersion(version: string) {
+    const callWS = vi.fn(async () => ({ ...snapshot(), version }));
+    const el = await mount<HTMLElement & { updateComplete: Promise<unknown> }>(
+      'meshcore-bbs-settings', { hass: fakeHass(true, callWS) });
+    await vi.waitFor(() => expect(el.shadowRoot!.textContent).toContain(`integration v${version}`));
+    return el;
+  }
+
+  it('shows integration and panel versions', async () => {
+    const el = await mountWithVersion(PANEL_VERSION);
+    const text = el.shadowRoot!.textContent!.replace(/\s+/g, ' ');
+    expect(text).toContain(`panel v${PANEL_VERSION}`);
+    expect(text).not.toContain('older than the installed integration');
+  });
+
+  it('warns when the cached panel is older than the integration', async () => {
+    const el = await mountWithVersion('99.0.0');
+    expect(el.shadowRoot!.textContent).toContain('older than the installed integration');
   });
 });

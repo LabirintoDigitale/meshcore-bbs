@@ -1,4 +1,5 @@
 import fs from 'fs';
+import path from 'path';
 import resolve from '@rollup/plugin-node-resolve';
 import typescript from '@rollup/plugin-typescript';
 import terser from '@rollup/plugin-terser';
@@ -62,6 +63,16 @@ export default {
     ],
   },
   plugins: [
+    // Inline the package version so the panel can show which bundle the
+    // browser is actually running (Settings → BBS), next to the version
+    // the backend reports — a mismatch means a stale cached bundle.
+    {
+      name: 'panel-version',
+      transform(code, id) {
+        if (!id.split(path.sep).join('/').endsWith('/src/constants.ts')) return null;
+        return { code: code.replace('__PANEL_VERSION__', pkg.version), map: null };
+      },
+    },
     resolve(),
     typescript({
       tsconfig: './tsconfig.json',

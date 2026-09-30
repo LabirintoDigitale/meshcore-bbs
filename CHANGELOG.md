@@ -4,6 +4,17 @@ All notable changes to **MeshCore BBS for Home Assistant** are documented here. 
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-09-30
+
+### Added
+
+- **Version in Settings.** The BBS card shows the integration version and the version of the panel the browser is running, with a warning when the panel is an older cached copy.
+
+### Fixed
+
+- **Stale panel after an update.** The panel bundle URL now carries the integration version (`?v=…`), so browsers and the HA companion apps load the new panel after an update instead of a cached one.
+- **BBS section always reachable.** Settings → BBS is shown even when the companion radio configuration cannot be loaded.
+
 ## [0.5.0] - 2026-09-30
 
 ### Added

@@ -2,6 +2,7 @@ import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { deleteBbsPost, importBbsDump, setBbsMenus, setBbsSettings } from '../api';
 import { bbsState, BbsStateController } from '../bbs/bbs-state';
+import { PANEL_VERSION } from '../constants';
 import type { BbsImportSummary, BbsMenu, BbsSettings, HomeAssistant } from '../types';
 
 type NumericKey = 'main_menu' | 'max_len' | 'session_ttl' | 'posts_shown' | 'denied_every' | 'admin_page';
@@ -127,6 +128,8 @@ export class BbsSettingsCard extends LitElement {
     .post-meta { font-size: 11px; color: var(--secondary-text-color); margin-bottom: 2px; }
     .stats { display: flex; gap: 16px; flex-wrap: wrap; font-size: 13px; color: var(--secondary-text-color); }
     .stats b { color: var(--primary-text-color); }
+    .version { font-size: 12px; color: var(--secondary-text-color); }
+    .version b { color: var(--primary-text-color); font-weight: 600; }
   `;
 
   willUpdate(changed: Map<string, unknown>) {
@@ -142,19 +145,39 @@ export class BbsSettingsCard extends LitElement {
     const snap = bbsState.snapshot;
     if (!snap) {
       return html`<div class="card"><div class="card-title">BBS</div>
-        <div class="sub">${bbsState.error ? `BBS unavailable: ${bbsState.error}` : 'Loading…'}</div></div>`;
+        <div class="sub">${bbsState.error ? `BBS unavailable: ${bbsState.error}` : 'Loading…'}</div>
+        ${this._renderVersion()}</div>`;
     }
     if (!this._isAdmin) {
       return html`<div class="card"><div class="card-title">BBS
         <span class="pill ${snap.settings.enabled ? 'on' : 'off'}">${snap.settings.enabled ? 'ON' : 'OFF'}</span></div>
-        <div class="sub">BBS settings can only be changed by a Home Assistant administrator.</div></div>`;
+        <div class="sub">BBS settings can only be changed by a Home Assistant administrator.</div>
+        ${this._renderVersion()}</div>`;
     }
     return html`
       ${this._renderMain()}
       ${this._renderMenus()}
       ${this._renderPosts()}
       ${this._renderImport()}
+      <div class="card">${this._renderVersion()}</div>
     `;
+  }
+
+  /**
+   * Integration (backend) and panel (this bundle) versions. They differ
+   * when the browser still runs a cached panel after an update.
+   */
+  private _renderVersion() {
+    const backend = bbsState.snapshot?.version || '';
+    const stale = !!backend && backend !== PANEL_VERSION;
+    return html`
+      <div class="version">
+        MeshCore BBS — integration <b>v${backend || '?'}</b> · panel <b>v${PANEL_VERSION}</b>
+      </div>
+      ${stale ? html`<div class="warning" style="margin: 8px 0 0;">
+        The panel in this browser is older than the installed integration.
+        Reload the page with Ctrl+Shift+R (in the HA app: Settings → Companion app → Debugging → Reset frontend cache).
+      </div>` : nothing}`;
   }
 
   // ─── settings ─────────────────────────────────────────────────────

@@ -436,6 +436,8 @@ export interface BbsMenu {
 }
 
 export interface BbsSnapshot {
+  /** Integration version from manifest.json (backend). */
+  version?: string;
   settings: BbsSettings;
   users: BbsUser[];
   requests: BbsRequest[];

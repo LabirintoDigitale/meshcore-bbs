@@ -376,6 +376,8 @@ class Bbs:
         self._sessions: dict[str, tuple[str, float]] = {}
         self._send_lock = asyncio.Lock()
         self.reply_delay = DEFAULT_REPLY_DELAY
+        # Integration version (manifest.json), reported to the panel.
+        self.version = ""
         self._tasks: set[asyncio.Task] = set()
 
     # ── persistence ──
@@ -412,6 +414,7 @@ class Bbs:
 
     def snapshot(self) -> dict[str, Any]:
         return {
+            "version": self.version,
             "settings": dict(self.settings),
             "users": [
                 {"pubkey": pk, **u}
