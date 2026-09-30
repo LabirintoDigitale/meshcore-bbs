@@ -4,6 +4,12 @@ All notable changes to **MeshCore BBS for Home Assistant** are documented here. 
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-09-30
+
+### Added
+
+- **Contact telemetry with map.** A **Telemetry** button in the contact details requests the contact's telemetry over the mesh — the same request as the MeshCore companion app — and shows the returned values (voltage, battery, temperature, humidity, pressure, …) and the position on an OpenStreetMap map: the GPS fix from the telemetry when present, otherwise the advertised position. The contact must grant you telemetry access; otherwise the request times out with an explanation. Admin only.
+
 ## [0.6.0] - 2026-09-30
 
 ### Added

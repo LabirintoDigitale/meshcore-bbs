@@ -151,6 +151,10 @@ The result view shows hops, total round-trip in ms, the per-hop path with SNR pe
 
 > **Note:** the trace dialog requires meshcore integration v2.6.0 or newer. On older versions the dialog reports a *"service not registered"* error.
 
+### Requesting a contact's telemetry
+
+Open the contact (Nodes tab, or its round avatar in the chat list) → **Telemetry**. The panel asks the contact for its telemetry over the mesh (like the companion app) and shows the values it returns, plus a map with its position — the GPS fix from the telemetry when there is one, otherwise the position it advertises. The contact must allow you to read its telemetry; if it doesn't answer within ~30 s you get a "No telemetry received" message. The map is loaded from openstreetmap.org, so it needs an internet connection. Admin only.
+
 ### Choosing the route of direct messages
 
 Direct messages to a contact follow the route the companion radio has stored for it (shown as *Route (Outgoing Path)* in the contact details). To force it through specific repeaters:

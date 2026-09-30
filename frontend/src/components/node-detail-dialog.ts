@@ -5,6 +5,7 @@ import { attachDialogA11y } from '../utils/dialog-a11y';
 import './bbs-badge';
 import './bbs-actions';
 import './route-dialog';
+import './telemetry-dialog';
 
 @customElement('meshcore-node-detail-dialog')
 export class NodeDetailDialog extends LitElement {
@@ -18,6 +19,7 @@ export class NodeDetailDialog extends LitElement {
   // Upstream meshcore entry the contact belongs to (route changes).
   @property({ type: String }) entryId?: string;
   @state() private _routeOpen = false;
+  @state() private _telemetryOpen = false;
 
   @state() private _confirming = false;
   @state() private _confirmAction: 'remove-contact' | null = null;
@@ -340,6 +342,10 @@ export class NodeDetailDialog extends LitElement {
                         <button class="action-btn" @click=${() => this._dispatchEvent('message')}><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/></svg>Message</button>
                       ` : html``}
                       ${isContact && (this.node as Contact).added_to_node ? html`
+                        <button class="action-btn" title="Request this contact's telemetry and position"
+                          @click=${() => { this._telemetryOpen = true; }}><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M3 13h2v7H3zm4-4h2v11H7zm4-4h2v15h-2zm4 7h2v8h-2zm4-3h2v11h-2z"/></svg>Telemetry</button>
+                      ` : html``}
+                      ${isContact && (this.node as Contact).added_to_node ? html`
                         <button class="action-btn" title="Choose the repeaters direct messages go through"
                           @click=${() => { this._routeOpen = true; }}><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M6 3a3 3 0 00-1 5.83V21h2V8.83A3 3 0 006 3zm12 12a3 3 0 00-2.83 2H10v2h5.17A3 3 0 1018 15zM9 7h6a2 2 0 010 4H11a4 4 0 000 8h-1v-2h1a2 2 0 010-4h4a4 4 0 000-8H9z"/></svg>Route</button>
                       ` : html``}
@@ -439,7 +445,13 @@ export class NodeDetailDialog extends LitElement {
           .entryId=${this.entryId}
           ?open=${this._routeOpen}
           @route-dialog-closed=${(e: Event) => { e.stopPropagation(); this._routeOpen = false; }}
-          @route-changed=${this._onRouteChanged}></meshcore-route-dialog>` : html``}
+          @route-changed=${this._onRouteChanged}></meshcore-route-dialog>
+        <meshcore-telemetry-dialog
+          .hass=${this.hass}
+          .contact=${this.node as Contact}
+          .entryId=${this.entryId}
+          ?open=${this._telemetryOpen}
+          @telemetry-dialog-closed=${(e: Event) => { e.stopPropagation(); this._telemetryOpen = false; }}></meshcore-telemetry-dialog>` : html``}
     `;
   }
 

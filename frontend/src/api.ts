@@ -1047,3 +1047,37 @@ export function setContactRoute(
   if (options.entryId) msg.entry_id = options.entryId;
   return hass.callWS<ContactRouteResult>(msg);
 }
+
+// ─── Contact telemetry ─────────────────────────────────────────────────
+
+/** One decoded Cayenne LPP value, e.g. {channel: 1, type: 'voltage', value: 4.1}. */
+export interface LppValue {
+  channel: number;
+  type: string;
+  value: number | Record<string, number> | number[];
+}
+
+export interface TelemetryResult {
+  pubkey_prefix: string;
+  lpp: LppValue[];
+  elapsed_ms: number;
+  received_at: number;
+}
+
+/**
+ * Ask a contact for its telemetry (same request as the companion app).
+ * Admin-only; rejects with `{ code, message }` — `no_response` when the
+ * contact did not answer or has not granted telemetry access.
+ */
+export function requestTelemetry(
+  hass: HomeAssistant,
+  pubkeyPrefix: string,
+  entryId?: string,
+): Promise<TelemetryResult> {
+  const msg: Record<string, unknown> = {
+    type: 'meshcore_bbs/request_telemetry',
+    pubkey_prefix: pubkeyPrefix,
+  };
+  if (entryId) msg.entry_id = entryId;
+  return hass.callWS<TelemetryResult>(msg);
+}
