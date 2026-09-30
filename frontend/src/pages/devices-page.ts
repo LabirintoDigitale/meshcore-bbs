@@ -12,6 +12,9 @@ import { longPress } from '../directives/long-press';
 import { loadMeshcoreEntityRegistry, type EntityInfo } from '../utils/classify-entity';
 import { attachDialogA11y } from '../utils/dialog-a11y';
 
+/** How long to wait for a managed device's reply to a CLI command. */
+const REMOTE_REPLY_TIMEOUT_MS = 20000;
+
 @customElement('meshcore-devices-page')
 export class DevicesPage extends LitElement {
   @property({ type: Object }) hass?: HomeAssistant;
@@ -37,6 +40,8 @@ export class DevicesPage extends LitElement {
   @state() private _commandDialogIsLocal = false;
   @state() private _statusMessage: { text: string; type: 'success' | 'error' } | null = null;
   @state() private _statusMessageTimeout: number | null = null;
+  // "<pubkey_prefix>:<command>" of remote actions in flight.
+  @state() private _remoteBusy: Set<string> = new Set();
 
   // Entity registry cache: HA device_id → entity list
   @state() private _deviceEntities: Record<string, EntityInfo[]> = {};
@@ -944,8 +949,8 @@ export class DevicesPage extends LitElement {
         ${showNeighbors ? this._renderInlineNeighbors(device, neighborState) : nothing}
 
         <div class="actions-row">
-          <button class="action-btn" ?disabled=${!isOnline} @click=${() => this._executeRemoteAction(device, 'advert')}>Flood Advert</button>
-          <button class="action-btn" ?disabled=${!isOnline} @click=${() => this._executeRemoteAction(device, 'clock sync')}>Sync Clock</button>
+          ${this._renderRemoteButton(device, 'advert', 'Flood Advert', isOnline)}
+          ${this._renderRemoteButton(device, 'clock sync', 'Sync Clock', isOnline)}
         </div>
       </div>
     `;
@@ -1201,22 +1206,71 @@ export class DevicesPage extends LitElement {
 
   // ─── Command Execution ────────────────────────────────────────────
 
+  /**
+   * Run a CLI command on a managed device (login + command). The SDK only
+   * confirms that the command left our radio; the device's own reply (e.g.
+   * "OK - Advert sent") arrives later as a direct message, so wait up to
+   * REMOTE_REPLY_TIMEOUT_MS for it and show it.
+   */
   private async _executeRemoteAction(device: ManagedDevice, command: string) {
     if (!this.hass) return;
+    const key = `${device.pubkey_prefix}:${command}`;
+    if (this._remoteBusy.has(key)) return;
+    this._remoteBusy = new Set(this._remoteBusy).add(key);
+    this._showStatusMessage(`${device.name}: sending "${command}"…`, 'success');
+
+    // Subscribe before sending so a fast reply isn't missed.
+    const prefix = device.pubkey_prefix.toLowerCase();
+    let unsub: (() => void) | undefined;
+    const reply = new Promise<string | null>((resolve) => {
+      const timer = window.setTimeout(() => resolve(null), REMOTE_REPLY_TIMEOUT_MS);
+      this.hass!.connection
+        .subscribeEvents((event) => {
+          const d = event.data as Record<string, unknown>;
+          const from = String(d.pubkey_prefix ?? '').toLowerCase();
+          if (d.outgoing || !from || !(from.startsWith(prefix) || prefix.startsWith(from))) return;
+          window.clearTimeout(timer);
+          resolve(String(d.message ?? d.text ?? ''));
+        }, 'meshcore_message')
+        .then((u) => { unsub = u; })
+        .catch(() => { /* no live reply; the command result is still shown */ });
+    });
 
     try {
       const result = await executeRemote(this.hass, device.pubkey_prefix, command, this.config?.entry_id);
       // executeRemote() catches WS errors and returns { success: false, response }
       // rather than throwing, so we must check result.success here — a thrown
       // error only happens for client-side exceptions (caught below).
-      if (result.success) {
-        this._showStatusMessage(`${device.name}: ${command} → ${result.response || 'OK'}`, 'success');
-      } else {
+      if (!result.success) {
         this._showStatusMessage(`${device.name}: ${command} failed — ${result.response || 'error'}`, 'error');
+        return;
+      }
+      // result.response is the send result, e.g. "Command sent" or
+      // "Login not confirmed — Command sent".
+      const sent = result.response || 'OK';
+      this._showStatusMessage(`${device.name}: ${command} → ${sent} — waiting for the reply…`, 'success');
+      const text = await reply;
+      if (text) {
+        this._showStatusMessage(`${device.name}: ${text}`, 'success');
+      } else {
+        this._showStatusMessage(
+          `${device.name}: ${command} → ${sent} — no reply within ${REMOTE_REPLY_TIMEOUT_MS / 1000} s ` +
+          `(it may still arrive in the device's chat)`, 'error');
       }
     } catch (error) {
       this._showStatusMessage(`${device.name}: ${command} failed — ${String(error)}`, 'error');
+    } finally {
+      unsub?.();
+      const next = new Set(this._remoteBusy);
+      next.delete(key);
+      this._remoteBusy = next;
     }
+  }
+
+  private _renderRemoteButton(device: ManagedDevice, command: string, label: string, isOnline: boolean) {
+    const busy = this._remoteBusy.has(`${device.pubkey_prefix}:${command}`);
+    return html`<button class="action-btn" ?disabled=${!isOnline || busy}
+      @click=${() => this._executeRemoteAction(device, command)}>${busy ? 'Sending…' : label}</button>`;
   }
 
   // _executeCompanionAction moved to settings-page.ts

@@ -4,6 +4,12 @@ All notable changes to **MeshCore BBS for Home Assistant** are documented here. 
 
 ## [Unreleased]
 
+## [0.6.2] - 2026-09-30
+
+### Changed
+
+- **Flood Advert / Sync Clock show what happens.** The button shows "Sending…" while the panel logs in and sends the command, then the panel waits up to 20 s for the device's own reply (e.g. `OK - Advert sent`, which arrives as a direct message) and shows it. Before, only a short "Command sent" appeared once the command left the radio, easy to miss while the device's answer came later in its chat.
+
 ## [0.6.1] - 2026-09-30
 
 ### Added
