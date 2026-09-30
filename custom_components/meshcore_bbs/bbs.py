@@ -29,6 +29,7 @@ import json
 import logging
 import re
 import time
+from collections import deque
 from copy import deepcopy
 from typing import Any
 
@@ -54,7 +55,7 @@ DEFAULT_REPLY_DELAY = 3.0
 # times in quick succession.
 SAVE_DELAY_SECONDS = 1.0
 
-VALID_ACTIONS = ("board", "write", "exit")
+VALID_ACTIONS = ("board", "write", "exit", "hops")
 # MeshCore advert types the BBS never answers: repeaters (2), room servers
 # (3) and sensors (4) send CLI replies / status as direct messages, and an
 # auto-reply to a repeater would be interpreted as a CLI command.
@@ -100,6 +101,7 @@ DEFAULT_MENUS: dict[str, dict[str, Any]] = {
                 {"key": "1", "label": "Bacheca", "type": "action", "action": "board"},
                 {"key": "2", "label": "Scrivi", "type": "action", "action": "write"},
                 {"key": "3", "label": "Informazioni", "type": "menu", "menu": 2},
+                {"key": "4", "label": "Hops", "type": "action", "action": "hops"},
                 {"key": "0", "label": "Esci", "type": "action", "action": "exit"},
             ],
         },
@@ -145,6 +147,8 @@ def _default_data() -> dict[str, Any]:
         "posts": [],
         "next_post_id": 1,
         "menus": deepcopy(DEFAULT_MENUS),
+        # One-off data migrations already applied (see async_load).
+        "migrations": ["hops_menu"],
     }
 
 
@@ -385,6 +389,11 @@ class Bbs:
         # Integration version (manifest.json), reported to the panel.
         self.version = ""
         self._tasks: set[asyncio.Task] = set()
+        # Recent direct-message receptions seen as raw RX_LOG packets:
+        # (time, src_hash, path_hex, path_hash_size, snr, rssi). The DM
+        # event itself only carries the hop count; the repeater path is
+        # in the packet header, which upstream publishes just before.
+        self._dm_rx: deque[tuple[float, str, str, int, Any, Any]] = deque(maxlen=50)
 
     # ── persistence ──
 
@@ -397,7 +406,35 @@ class Bbs:
                     data[key] = stored[key]
             if isinstance(stored.get("settings"), dict):
                 data["settings"].update(stored["settings"])
+            data["migrations"] = list(stored.get("migrations") or [])
         self.data = data
+        if isinstance(stored, dict) and self._migrate_add_hops():
+            await self.async_flush()
+
+    def _migrate_add_hops(self) -> bool:
+        """One-off: add a "Hops" entry to an existing main menu (0.6.0)."""
+        done = self.data.setdefault("migrations", [])
+        if "hops_menu" in done:
+            return False
+        done.append("hops_menu")
+        menu = self.data["menus"].get(str(self.settings.get("main_menu", 1)))
+        config = menu.get("config") if isinstance(menu, dict) else None
+        options = config.get("options") if isinstance(config, dict) else None
+        if not isinstance(options, list) or any(
+            isinstance(o, dict) and o.get("action") == "hops" for o in options
+        ):
+            return True
+        used = {str(o.get("key", "")).strip().lower() for o in options if isinstance(o, dict)}
+        key = next((str(k) for k in range(1, 10) if str(k) not in used), None)
+        if key is None:
+            return True
+        entry = {"key": key, "label": "Hops", "type": "action", "action": "hops"}
+        exit_idx = next(
+            (i for i, o in enumerate(options) if isinstance(o, dict) and o.get("action") == "exit"),
+            len(options),
+        )
+        options.insert(exit_idx, entry)
+        return True
 
     @callback
     def _changed(self) -> None:
@@ -620,7 +657,9 @@ class Bbs:
 
     # ── main entry point ──
 
-    def handle(self, user_pk: str, user: dict, text: str) -> list[str]:
+    def handle(
+        self, user_pk: str, user: dict, text: str, meta: dict[str, Any] | None = None
+    ) -> list[str]:
         """Process one message from an authorised user; return replies."""
         inp = text.strip()
         cmd = inp.lower()
@@ -689,10 +728,20 @@ class Bbs:
             out.append(self._render_menu(tmenu, user))
             return out
         if typ == "action":
-            return self._run_action(str(opt.get("action", "")), user_pk, user, mid, menu)
+            return self._run_action(
+                str(opt.get("action", "")), user_pk, user, mid, menu, meta
+            )
         return ["Voce configurata male.", self._render_menu(menu, user)]
 
-    def _run_action(self, action: str, user_pk: str, user: dict, mid: int, menu: dict) -> list[str]:
+    def _run_action(
+        self,
+        action: str,
+        user_pk: str,
+        user: dict,
+        mid: int,
+        menu: dict,
+        meta: dict[str, Any] | None = None,
+    ) -> list[str]:
         if action == "board":
             posts = list(reversed(self.data["posts"]))[: int(self.settings["posts_shown"])]
             if not posts:
@@ -706,6 +755,9 @@ class Bbs:
         if action == "write":
             self._set_state(user_pk, f"write:{mid}")
             return ["Scrivi il messaggio (0 = annulla):"]
+        if action == "hops":
+            # How this very message reached the BBS (hops, SNR, RSSI, time).
+            return [self.hops_reply(user, meta)]
         if action == "exit":
             self._sessions.pop(user_pk, None)
             return [f"Ciao {user['name']}, a presto!"]
@@ -902,7 +954,7 @@ class Bbs:
                 reply += "\n" + self.reception_info(meta)
             return self.split([reply]), False
         upk, user = found
-        return self.split(self.handle(upk, user, text)), True
+        return self.split(self.handle(upk, user, text, meta)), True
 
     def split(self, replies: list[str]) -> list[str]:
         size = int(self.settings["max_len"])
@@ -910,6 +962,74 @@ class Bbs:
         for r in replies:
             out.extend(r[i:i + size] for i in range(0, len(r), size) or [0])
         return [r for r in out if r]
+
+    # ── route of direct messages (for the "hops" action) ──
+
+    @callback
+    def async_handle_raw_event(self, event: Event) -> None:
+        """Remember the header path of received direct-message packets."""
+        data = event.data or {}
+        if "RX_LOG" not in str(data.get("event_type", "")).upper():
+            return
+        p = data.get("payload")
+        if not isinstance(p, dict) or p.get("payload_type") != 2:  # TXT_MSG
+            return
+        body = p.get("pkt_payload")
+        if isinstance(body, str):
+            try:
+                body = bytes.fromhex(body)
+            except ValueError:
+                return
+        if not isinstance(body, (bytes, bytearray)) or len(body) < 2:
+            return
+        # Datagram payload starts with dest_hash(1) + src_hash(1).
+        src_hash = f"{body[1]:02x}"
+        self._dm_rx.append((
+            time.time(), src_hash, str(p.get("path") or "").lower(),
+            int(p.get("path_hash_size") or 1), p.get("snr"), p.get("rssi"),
+        ))
+
+    def _dm_route(self, pk: str, max_age: float = 15.0) -> tuple[list[str], Any, Any] | None:
+        """Most recent DM reception from ``pk``: (hops, snr, rssi)."""
+        now = time.time()
+        for ts, src, path, size, snr, rssi in reversed(self._dm_rx):
+            if now - ts > max_age:
+                break
+            if pk.startswith(src):
+                width = 2 * max(1, size)
+                hops = [path[i:i + width] for i in range(0, len(path) - width + 1, width)]
+                return hops, snr, rssi
+        return None
+
+    def hops_reply(self, user: dict, meta: dict[str, Any] | None) -> str:
+        """Bot-style reception line, same format as the panel's Reply:
+        "@[name] | 7de3,6522 (2 hops) | SNR: 8.5 dB | RSSI: -88 dBm | Received at: 14:56:15"
+        """
+        meta = meta or {}
+        pk = clean_pubkey(meta.get("pubkey_prefix") or meta.get("public_key") or "")
+        route = self._dm_route(pk) if pk else None
+        parts = [f"@[{user.get('name', '')}]"]
+        snr, rssi = meta.get("snr"), meta.get("rssi")
+        if route is not None:
+            nodes, r_snr, r_rssi = route
+            snr = snr if snr is not None else r_snr
+            rssi = rssi if rssi is not None else r_rssi
+        else:
+            nodes = []
+        hc = meta.get("hop_count", meta.get("path_len"))
+        if nodes:
+            n = len(nodes)
+            parts.append(f"{','.join(h[:4] for h in nodes)} ({n} hop{'s' if n != 1 else ''})")
+        elif isinstance(hc, int) and 0 < hc < 64:
+            parts.append(f"{hc} hop{'s' if hc != 1 else ''}")
+        else:
+            parts.append("direct (0 hops)")
+        if isinstance(snr, (int, float)) and not isinstance(snr, bool):
+            parts.append(f"SNR: {snr:g} dB")
+        if isinstance(rssi, (int, float)) and not isinstance(rssi, bool):
+            parts.append(f"RSSI: {rssi:g} dBm")
+        parts.append("Received at: " + dt_util.now().strftime("%H:%M:%S"))
+        return " | ".join(parts)
 
     def _own_prefixes(self) -> list[str]:
         prefixes = []

@@ -4,6 +4,12 @@ All notable changes to **MeshCore BBS for Home Assistant** are documented here. 
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-09-30
+
+### Added
+
+- **BBS "Hops" menu entry.** New menu action `hops`: the BBS replies with how the user's message reached it, in the same format as the panel's Reply — `@[name] | 7de3,6522 (2 hops) | SNR: 8.5 dB | RSSI: -88 dBm | Received at: 14:56:15`. The repeater path of direct messages is taken from the raw RX_LOG packet header (the DM event only carries the hop count); without it the hop count is used. Existing installs get a "Hops" entry added once to the main menu, before "Exit", with the first free key.
+
 ### Changed
 
 - The TX power field no longer has an upper bound in the page: the radio's maximum is shown next to the label as information only; the firmware decides what it accepts.

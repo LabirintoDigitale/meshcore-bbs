@@ -194,7 +194,7 @@ The built-in BBS answers **direct messages** (never channel messages) from conta
 
 - `text` — replies with `text` (add `"show_menu": true` to repeat the menu after it);
 - `menu` — opens the menu whose id is in `menu`;
-- `action` — `board` (latest posts), `write` (next message becomes a post; `0` cancels) or `exit`.
+- `action` — `board` (latest posts), `write` (next message becomes a post; `0` cancels), `hops` (replies with the route, SNR, RSSI and time of the user's message, like the panel's Reply) or `exit`.
 
 Keys `m`, `menu` and `?` are reserved (they re-show the current menu). **Check** validates without saving; **Save menus** refuses to save a menu set with errors.
 

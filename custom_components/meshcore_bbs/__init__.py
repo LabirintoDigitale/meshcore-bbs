@@ -265,6 +265,10 @@ async def async_setup_entry(
         bucket["bbs"].async_handle_event,
     ))
     entry.async_on_unload(hass.bus.async_listen(
+        f"{MESHCORE_DOMAIN}_raw_event",
+        bucket["bbs"].async_handle_raw_event,
+    ))
+    entry.async_on_unload(hass.bus.async_listen(
         EVENT_MESHCORE_DELIVERY_UPDATE,
         _make_delivery_update_handler(hass, entry.entry_id),
     ))

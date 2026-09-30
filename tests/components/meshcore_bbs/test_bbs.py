@@ -4,6 +4,9 @@ from __future__ import annotations
 from types import SimpleNamespace
 from typing import Any
 
+import time
+from unittest.mock import patch
+
 import pytest
 from homeassistant.core import HomeAssistant
 from homeassistant.setup import async_setup_component
@@ -427,3 +430,84 @@ async def test_ws_mutations_require_admin(
     assert res["success"]
     res = await _ws(client, type="meshcore_bbs/bbs_user", op="add", pubkey="0123456789ab")
     assert res["error"]["code"] == "unauthorized"
+
+
+# ─── "hops" menu action ─────────────────────────────────────────────────
+
+
+def _dm_rx_event(src_first_byte: int, path: str, size: int = 2, snr: float = 9.25, rssi: int = -88):
+    return SimpleNamespace(data={
+        "event_type": "EventType.RX_LOG_DATA",
+        "payload": {
+            "payload_type": 2,
+            "pkt_payload": bytes([0xFF, src_first_byte, 0x12, 0x34, 0x00]),
+            "path": path,
+            "path_hash_size": size,
+            "snr": snr,
+            "rssi": rssi,
+        },
+    })
+
+
+async def test_hops_action_replies_bot_style_with_dm_path(bbs: Bbs) -> None:
+    menus = dict(bbs.data["menus"])
+    menus["1"] = {**menus["1"], "config": {**menus["1"]["config"], "options": [
+        *menus["1"]["config"]["options"],
+        {"key": "4", "label": "Hops", "type": "action", "action": "hops"},
+    ]}}
+    assert bbs.set_menus(menus) == []
+    bbs.process(USER, "Bob", "hi")
+
+    # Raw RX_LOG of Bob's DM (src hash = first byte of Bob's key 0xbb)
+    bbs.async_handle_raw_event(_dm_rx_event(0xBB, "7de36522"))
+    replies, _ = bbs.process(USER, "Bob", "4", {"pubkey_prefix": USER, "hop_count": 2, "snr": 8.5})
+    reply = replies[0]
+    assert reply.startswith("@[Bob] | 7de3,6522 (2 hops) | SNR: 8.5 dB | RSSI: -88 dBm | Received at: ")
+
+
+async def test_hops_reply_without_packet_uses_hop_count(bbs: Bbs) -> None:
+    text = bbs.hops_reply({"name": "Bob"}, {"pubkey_prefix": USER, "hop_count": 3, "snr": 5})
+    assert text.startswith("@[Bob] | 3 hops | SNR: 5 dB | Received at: ")
+    text = bbs.hops_reply({"name": "Bob"}, {"pubkey_prefix": USER, "hop_count": 0})
+    assert text.startswith("@[Bob] | direct (0 hops) | Received at: ")
+
+
+async def test_dm_route_ignores_other_senders_and_old_packets(bbs: Bbs) -> None:
+    bbs.async_handle_raw_event(_dm_rx_event(0xCC, "65"))
+    assert bbs._dm_route(USER) is None
+    # Upstream sanitizes bytes to hex strings on the HA bus
+    hex_event = _dm_rx_event(0xBB, "a0b7", size=1)
+    hex_event.data["payload"]["pkt_payload"] = hex_event.data["payload"]["pkt_payload"].hex()
+    bbs.async_handle_raw_event(hex_event)
+    assert bbs._dm_route(USER)[0] == ["a0", "b7"]
+    with patch("custom_components.meshcore_bbs.bbs.time.time", return_value=time.time() + 60):
+        assert bbs._dm_route(USER) is None
+    # Channel packets and malformed payloads are ignored
+    bbs.async_handle_raw_event(SimpleNamespace(data={"event_type": "EventType.RX_LOG_DATA",
+                                                     "payload": {"payload_type": 5}}))
+    bbs.async_handle_raw_event(SimpleNamespace(data={"event_type": "EventType.RX_LOG_DATA",
+                                                     "payload": {"payload_type": 2, "pkt_payload": "zz"}}))
+
+
+async def test_hops_menu_migration_adds_entry_once(hass: HomeAssistant, hass_storage) -> None:
+    from custom_components.meshcore_bbs.const import STORAGE_KEY_BBS
+
+    data = dump_to_bbs_data(SAMPLE_DUMP)
+    hass_storage[STORAGE_KEY_BBS] = {"version": 1, "key": STORAGE_KEY_BBS, "data": {
+        "settings": {}, "users": data["users"], "requests": {}, "posts": data["posts"],
+        "next_post_id": 8, "menus": data["menus"],
+    }}
+    b = Bbs(hass)
+    await b.async_load()
+    opts = b.data["menus"]["1"]["config"]["options"]
+    assert [o["key"] for o in opts] == ["1", "2", "3", "4", "0"]
+    assert opts[3] == {"key": "4", "label": "Hops", "type": "action", "action": "hops"}
+    assert "hops_menu" in b.data["migrations"]
+    assert validate_menus(b.data["menus"], 1) == []
+
+    # A second load does not add it again, even if the user removed it
+    b.data["menus"]["1"]["config"]["options"] = [o for o in opts if o.get("action") != "hops"]
+    await b.async_flush()
+    b2 = Bbs(hass)
+    await b2.async_load()
+    assert all(o.get("action") != "hops" for o in b2.data["menus"]["1"]["config"]["options"])

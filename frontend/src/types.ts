@@ -428,7 +428,7 @@ export interface BbsMenuOption {
   type: 'text' | 'menu' | 'action';
   text?: string;
   menu?: number;
-  action?: 'board' | 'write' | 'exit';
+  action?: 'board' | 'write' | 'exit' | 'hops';
   show_menu?: boolean;
 }
 
