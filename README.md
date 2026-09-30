@@ -8,9 +8,9 @@ Works as a **companion** to the [core meshcore integration](https://github.com/m
 
 MeshCore BBS is based on [meshcore-ha-chat](https://github.com/mwolter805/meshcore-ha-chat) by mwolter805 — see [Credits](#credits).
 
-> **Status:** v0.3 in active development.
+> **Status:** v0.5 in active development.
 
-## Features (v0.3)
+## Features
 
 - Sidebar chat panel with channels, DMs, and contact list
 - Persistent message history (survives Home Assistant restarts)
