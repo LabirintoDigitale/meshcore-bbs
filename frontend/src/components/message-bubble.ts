@@ -328,6 +328,9 @@ export class MessageBubble extends LitElement {
 
     const statusLabel = msg.isOutgoing && msg.deliveryStatus ? this._getStatusLabel(msg.deliveryStatus) : '';
     const ts = formatTimestamp(msg.timestamp, this.timestampFormat);
+    // Hop count for received messages, next to the time.
+    const hops = !msg.isOutgoing && !msg.isSystem ? messageHops(msg.rxLogData) : null;
+    const hopsLabel = hops === null ? '' : `${hops} hop${hops !== 1 ? 's' : ''}`;
     // Inbound region scope — incoming bubbles only. "*" → "🌐 all regions",
     // a region name renders verbatim, absent renders nothing. The outbound
     // scope is shown by the thread-header chip, so outgoing is unaffected.
@@ -341,7 +344,7 @@ export class MessageBubble extends LitElement {
     return html`
       <div class=${this._classMap(bubbleClasses)} data-msg-id=${msg.id} @click=${(e: Event) => { e.stopPropagation(); this._selectedMessage = msg; }}>
         <div class="message-text">${this._renderTextWithMentions(msg.text, msg.mentions)}</div>
-        <div class="timestamp">${statusLabel ? html`<span class="delivery-status">${statusLabel}</span> · ` : ''}${ts}${scopeLabel ? html` · <span class="flood-scope">${scopeLabel}</span>` : ''}</div>
+        <div class="timestamp">${statusLabel ? html`<span class="delivery-status">${statusLabel}</span> · ` : ''}${ts}${hopsLabel ? html` · <span class="hops">${hopsLabel}</span>` : ''}${scopeLabel ? html` · <span class="flood-scope">${scopeLabel}</span>` : ''}</div>
       </div>
     `;
   }
@@ -403,31 +406,7 @@ export class MessageBubble extends LitElement {
 
   private _renderMessageDialog(msg: ChatMessage) {
     const hasRoute = msg.rxLogData && msg.rxLogData.length > 0;
-    const routeText = hasRoute
-      ? msg.rxLogData!
-          .map((e) => {
-            const nodes = e.path_nodes as string[] | undefined;
-            const hops = e.hop_count as number | undefined;
-            const snr = e.snr as number | undefined;
-            const rssi = e.rssi as number | undefined;
-            const parts: string[] = [];
-            if (nodes && nodes.length > 0) {
-              parts.push(nodes.map((n: string) => n.substring(0, 4).toUpperCase()).join(' > '));
-            } else if (hops !== undefined) {
-              parts.push(`${hops} hop${hops !== 1 ? 's' : ''}`);
-            } else {
-              // No path_nodes / hop_count → packet was heard directly by
-              // the local node. Label as "0 hops" rather than "direct" so
-              // it isn't confusable with the "direct message" message-type
-              // for channel broadcasts that happened to be in radio range.
-              parts.push('0 hops');
-            }
-            if (snr !== undefined) parts.push(`SNR: ${snr}`);
-            if (rssi !== undefined) parts.push(`RSSI: ${rssi}`);
-            return parts.join(' · ');
-          })
-          .join(' | ')
-      : '';
+    const routeText = hasRoute ? msg.rxLogData!.map(routeEntryText).join(' | ') : '';
 
     const fullDateTime = msg.timestamp.toLocaleString(undefined, {
       weekday: 'short',
@@ -451,7 +430,7 @@ export class MessageBubble extends LitElement {
           </button>
           ${!msg.isOutgoing && !msg.isSystem
             ? html`
-                <button class="message-dialog-action" @click=${() => this._replyToSender(msg.sender)}>
+                <button class="message-dialog-action" @click=${() => this._replyToSender(msg)}>
                   <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" style="vertical-align: -2px; margin-right: 4px;"><path d="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11z"/></svg>Reply
                 </button>
               `
@@ -497,10 +476,17 @@ export class MessageBubble extends LitElement {
     this._selectedMessage = null;
   }
 
-  private _replyToSender(sender: string) {
+  /**
+   * Reply pre-fills the mention plus how the message reached us, e.g.
+   * "@[Alfa 10] Route: 23BD > 5982 > 1029 · SNR: 8.5 · RSSI: -88 ".
+   * Only the first route is used: a channel message heard over several
+   * paths would otherwise overflow the mesh message length.
+   */
+  private _replyToSender(msg: ChatMessage) {
+    const first = msg.rxLogData && msg.rxLogData.length > 0 ? routeEntryText(msg.rxLogData[0]) : '';
     this.dispatchEvent(
       new CustomEvent('reply-to-sender', {
-        detail: { mention: `@[${sender}] ` },
+        detail: { mention: `@[${msg.sender}] ${first ? `Route: ${first} ` : ''}` },
         bubbles: true,
         composed: true,
       }),
@@ -514,6 +500,46 @@ export class MessageBubble extends LitElement {
       .map(([key]) => key)
       .join(' ');
   }
+}
+
+/** One rx_log entry as text: "23BD > 5982 > 1029 · SNR: 8.5 · RSSI: -88". */
+export function routeEntryText(e: Record<string, unknown>): string {
+  const nodes = e.path_nodes as string[] | undefined;
+  const hops = e.hop_count as number | undefined;
+  const snr = e.snr as number | undefined;
+  const rssi = e.rssi as number | undefined;
+  const parts: string[] = [];
+  if (nodes && nodes.length > 0) {
+    parts.push(nodes.map((n: string) => n.substring(0, 4).toUpperCase()).join(' > '));
+  } else if (hops !== undefined) {
+    parts.push(`${hops} hop${hops !== 1 ? 's' : ''}`);
+  } else {
+    // No path_nodes / hop_count → packet was heard directly by
+    // the local node. Label as "0 hops" rather than "direct" so
+    // it isn't confusable with the "direct message" message-type
+    // for channel broadcasts that happened to be in radio range.
+    parts.push('0 hops');
+  }
+  if (snr !== undefined && snr !== null) parts.push(`SNR: ${snr}`);
+  if (rssi !== undefined && rssi !== null) parts.push(`RSSI: ${rssi}`);
+  return parts.join(' · ');
+}
+
+/**
+ * Fewest hops over which a received message was heard, or null when the
+ * message carries no route data. Uses path_nodes when present, else
+ * hop_count; an entry with neither was heard directly (0 hops).
+ */
+export function messageHops(rxLogData: Array<Record<string, unknown>> | undefined): number | null {
+  if (!rxLogData || rxLogData.length === 0) return null;
+  let best: number | null = null;
+  for (const e of rxLogData) {
+    const nodes = e.path_nodes as string[] | undefined;
+    const hc = e.hop_count;
+    const hops = nodes && nodes.length > 0 ? nodes.length : typeof hc === 'number' ? hc : 0;
+    if (best === null || hops < best) best = hops;
+  }
+  return best;
 }
 
 declare global {

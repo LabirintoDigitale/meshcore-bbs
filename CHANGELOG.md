@@ -4,6 +4,13 @@ All notable changes to **MeshCore BBS for Home Assistant** are documented here. 
 
 ## [Unreleased]
 
+## [0.5.4] - 2026-09-30
+
+### Added
+
+- **Reply includes the route.** Reply in the message popup now pre-fills the mention followed by how the message reached you, e.g. `@[Alfa 10] Route: 23BD > 5982 > 1029 · SNR: 8.5 · RSSI: -88`. For channel messages heard over several paths, the first path is used.
+- **Hop count on received messages.** Received bubbles show the number of hops next to the time (e.g. `28m · 3 hops`) — the fewest hops over which the message was heard.
+
 ## [0.5.3] - 2026-09-30
 
 ### Fixed
