@@ -10,6 +10,9 @@ import type {
 import '../components/contact-card';
 import '../components/node-card';
 import '../components/node-detail-dialog';
+import { bbsState, BbsStateController, prefixesMatch } from '../bbs/bbs-state';
+
+type BbsView = 'users' | 'requests';
 
 const PAGE_SIZE = 50;
 
@@ -45,6 +48,11 @@ export class NodesPage extends LitElement {
 
   // ─── Two-level filter state ─────────────────────────────────────────
   @state() private _primaryFilter: PrimaryCategory = 'all';
+  // BBS views are client-side lists built from the shared BBS state;
+  // when set they replace the paginated contact grid.
+  @state() private _bbsView: BbsView | null = null;
+  // Re-renders this element when the shared BBS state changes.
+  protected readonly bbsController = new BbsStateController(this);
   @state() private _typeFilter: NodeType | null = null;
   @state() private _searchQuery = '';
 
@@ -127,6 +135,12 @@ export class NodesPage extends LitElement {
     .l1-btn.added,
     .l1-btn.all         { border-left-color: rgba(3, 169, 244, 0.5); }
     .l1-btn.discovered  { border-left-color: rgba(76, 175, 80, 0.5); }
+    .l1-btn.bbs         { border-left-color: rgba(156, 39, 176, 0.5); }
+    .l1-btn.active.bbs {
+      background: rgba(156, 39, 176, 0.12);
+      color: #7b1fa2;
+      border-color: rgba(156, 39, 176, 0.5);
+    }
 
     /* Active state: translucent category background + saturated text,
        matching the per-card category-badge treatment so the filter
@@ -443,10 +457,12 @@ export class NodesPage extends LitElement {
             ${this._renderL1Button('all', 'All')}
             ${this._renderL1Button('added', '★ Added')}
             ${this._renderL1Button('discovered', 'Discovered')}
+            ${this._renderBbsButton('users', 'BBS', bbsState.snapshot?.users.length ?? 0)}
+            ${this._renderBbsButton('requests', 'Requests', bbsState.snapshot?.requests.length ?? 0)}
           </div>
 
           <!-- Level 2 filters (hidden when L1 = All) -->
-          ${this._primaryFilter !== 'all' ? html`
+          ${this._primaryFilter !== 'all' && !this._bbsView ? html`
             <div class="l2-bar">
               ${this._renderL2Buttons()}
             </div>
@@ -489,7 +505,7 @@ export class NodesPage extends LitElement {
 
         <!-- Content area -->
         <div class="content-area">
-          ${this._renderContactsContent()}
+          ${this._bbsView ? this._renderBbsContent() : this._renderContactsContent()}
         </div>
       </div>
 
@@ -513,7 +529,7 @@ export class NodesPage extends LitElement {
 
   private _renderL1Button(category: PrimaryCategory, label: string) {
     const count = this._l1Counts[category];
-    const isActive = this._primaryFilter === category;
+    const isActive = this._primaryFilter === category && !this._bbsView;
     const classes = `l1-btn ${category} ${isActive ? 'active' : ''}`;
 
     return html`
@@ -523,6 +539,80 @@ export class NodesPage extends LitElement {
         ${label} <span class="l1-count">(${count})</span>
       </button>
     `;
+  }
+
+  private _renderBbsButton(view: BbsView, label: string, count: number) {
+    const isActive = this._bbsView === view;
+    return html`
+      <button
+        class=${`l1-btn bbs ${isActive ? 'active' : ''}`}
+        title=${view === 'users' ? 'Contacts with BBS access' : 'Contacts that wrote to the BBS without access'}
+        @click=${() => { this._bbsView = isActive ? null : view; }}>
+        ${label} <span class="l1-count">(${count})</span>
+      </button>
+    `;
+  }
+
+  /**
+   * Contacts for the BBS views. BBS users/requests are keyed by pubkey
+   * prefix and may not be in the loaded contact page, so fall back to
+   * a minimal stand-in carrying the BBS name — enough for the card and
+   * the node detail dialog (which hosts the BBS actions).
+   */
+  private _bbsContacts(): Contact[] {
+    const snap = bbsState.snapshot;
+    if (!snap || !this._bbsView) return [];
+    const known = [...this.contacts, ...this._displayedContacts];
+    const rows = this._bbsView === 'users'
+      ? snap.users.map((u) => ({ pubkey: u.pubkey, name: u.name }))
+      : snap.requests.map((r) => ({ pubkey: r.pubkey, name: r.name || r.pubkey }));
+    const q = this._searchQuery.trim().toLowerCase();
+    return rows
+      .map(({ pubkey, name }) => {
+        const match = known.find((c) => prefixesMatch(c.pubkey_prefix, pubkey));
+        return match ?? ({
+          public_key: pubkey,
+          pubkey_prefix: pubkey,
+          added_to_node: false,
+          adv_name: name,
+          type: 1,
+          flags: 0,
+          adv_lat: 0,
+          adv_lon: 0,
+          lastmod: 0,
+          last_advert: 0,
+          out_path: '',
+          out_path_len: 0,
+          out_path_hash_mode: 0,
+          bbs_placeholder: true,
+        } as Contact);
+      })
+      .filter((c) => !q || c.adv_name.toLowerCase().includes(q) || c.pubkey_prefix.includes(q));
+  }
+
+  private _renderBbsContent() {
+    if (!bbsState.snapshot) {
+      return html`<div class="empty-state"><div class="empty-text">
+        ${bbsState.error ? `BBS unavailable: ${bbsState.error}` : 'Loading...'}</div></div>`;
+    }
+    const contacts = this._bbsContacts();
+    if (contacts.length === 0) {
+      return html`
+        <div class="empty-state">
+          <div class="empty-text">${this._bbsView === 'users' ? 'No BBS users' : 'No pending requests'}</div>
+          <div class="empty-subtext">${this._bbsView === 'users'
+            ? 'Open a contact and choose “Add to BBS”'
+            : 'Contacts that message the BBS without access appear here'}</div>
+        </div>`;
+    }
+    return html`
+      <div class="nodes-grid">
+        ${contacts.map((c) => html`
+          <div @click=${() => this._openNodeDetail(c)}>
+            <meshcore-contact-card .contact=${c}></meshcore-contact-card>
+          </div>
+        `)}
+      </div>`;
   }
 
   // ─── Level 2 button rendering ─────────────────────────────────────
@@ -546,7 +636,8 @@ export class NodesPage extends LitElement {
   // ─── Filter actions ───────────────────────────────────────────────
 
   private _setPrimaryFilter(category: PrimaryCategory) {
-    if (this._primaryFilter === category) return;
+    if (this._primaryFilter === category && !this._bbsView) return;
+    this._bbsView = null;
     this._primaryFilter = category;
     this._typeFilter = null;
     this._displayedContacts = [];

@@ -1,6 +1,7 @@
 import { LitElement, html, css } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import type { Contact, ManagedDevice } from '../types';
+import './bbs-badge';
 
 @customElement('meshcore-node-card')
 export class NodeCard extends LitElement {
@@ -148,7 +149,7 @@ export class NodeCard extends LitElement {
         <div class="node-header">
           <div class=${`node-avatar ${typeClass}`}>${avatarSvg}</div>
           <div class="node-info">
-            <div class="node-name">${name}</div>
+            <div class="node-name">${name}${prefix ? html`<meshcore-bbs-badge .pubkey=${prefix}></meshcore-bbs-badge>` : ''}</div>
             <div class="node-prefix">${prefix}</div>
             <div class=${`node-type-label ${typeClass}`}>${typeLabel}</div>
           </div>

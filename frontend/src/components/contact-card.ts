@@ -1,6 +1,7 @@
 import { LitElement, html, css } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import type { Contact } from '../types';
+import './bbs-badge';
 
 @customElement('meshcore-contact-card')
 export class ContactCard extends LitElement {
@@ -117,7 +118,7 @@ export class ContactCard extends LitElement {
           ${this._getTypeIcon(c.type)}
         </div>
         <div class="contact-info">
-          <div class="contact-name">${c.adv_name}</div>
+          <div class="contact-name">${c.adv_name}<meshcore-bbs-badge .pubkey=${c.pubkey_prefix}></meshcore-bbs-badge></div>
           <div class="contact-prefix">${c.pubkey_prefix}</div>
           <div class="contact-meta">
             ${c.lastmod ? `Last heard ${new Date(c.lastmod * 1000).toLocaleString()}` : ''}

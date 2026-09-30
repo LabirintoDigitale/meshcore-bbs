@@ -35,6 +35,8 @@ export interface HomeAssistant {
   themes: {
     darkMode: boolean;
   };
+  /** Logged-in HA user; BBS management actions are admin-only. */
+  user?: { is_admin: boolean; name?: string };
   language: string;
   locale: Record<string, unknown>;
   dockedSidebar: 'docked' | 'auto' | 'always_hidden';
@@ -373,4 +375,80 @@ export interface NeighborInfo {
   last_seen: string;
   seen_48h?: number;
   entity_ids?: Record<string, string>;
+}
+
+// ─── Built-in BBS (meshcore_bbs/bbs_* WebSocket commands) ──────────────
+
+export interface BbsSettings {
+  enabled: boolean;
+  name: string;
+  main_menu: number;
+  max_len: number;
+  session_ttl: number;
+  posts_shown: number;
+  reply_denied: boolean;
+  denied_every: number;
+  denied_text: string;
+  admin_prefix: string;
+  admin_page: number;
+  notify_service: string;
+}
+
+export interface BbsUser {
+  pubkey: string;
+  name: string;
+  active: boolean;
+  is_admin: boolean;
+  created: number;
+}
+
+export interface BbsRequest {
+  pubkey: string;
+  name: string;
+  last_text: string;
+  hits: number;
+  first_seen: number;
+  last_seen: number;
+}
+
+export interface BbsPost {
+  id: number;
+  author: string;
+  body: string;
+  created: number;
+}
+
+export interface BbsMenuOption {
+  key: string;
+  label: string;
+  type: 'text' | 'menu' | 'action';
+  text?: string;
+  menu?: number;
+  action?: 'board' | 'write' | 'exit';
+  show_menu?: boolean;
+}
+
+export interface BbsMenu {
+  id: number;
+  name: string;
+  active: boolean;
+  config: { title?: string; welcome?: string; options: BbsMenuOption[] };
+}
+
+export interface BbsSnapshot {
+  settings: BbsSettings;
+  users: BbsUser[];
+  requests: BbsRequest[];
+  posts: BbsPost[];
+  menus: BbsMenu[];
+}
+
+export type BbsUserOp = 'add' | 'del' | 'on' | 'off' | 'admin' | 'unadmin';
+
+export interface BbsImportSummary {
+  users?: number;
+  requests?: number;
+  posts?: number;
+  menus?: number;
+  menu_errors?: string[];
 }

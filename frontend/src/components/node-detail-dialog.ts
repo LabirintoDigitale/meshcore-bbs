@@ -2,6 +2,8 @@ import { LitElement, html, css } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import type { Contact, ManagedDevice, HomeAssistant } from '../types';
 import { attachDialogA11y } from '../utils/dialog-a11y';
+import './bbs-badge';
+import './bbs-actions';
 
 @customElement('meshcore-node-detail-dialog')
 export class NodeDetailDialog extends LitElement {
@@ -280,6 +282,9 @@ export class NodeDetailDialog extends LitElement {
 
     const name = isContact ? (this.node as Contact).adv_name : (this.node as ManagedDevice).name;
     const prefix = isContact ? (this.node as Contact).pubkey_prefix : (this.node as ManagedDevice).pubkey_prefix;
+    // Stand-in built by the Nodes page BBS views for a BBS user that is
+    // not a known contact: only the BBS section applies.
+    const placeholder = isContact && !!(this.node as Contact).bbs_placeholder;
 
     let avatarSvg = html`<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>`;
     let typeLabel = 'Contact';
@@ -301,7 +306,7 @@ export class NodeDetailDialog extends LitElement {
           <div class="dialog-header">
             <div class=${`dialog-avatar ${typeClass}`}>${avatarSvg}</div>
             <div class="dialog-title">
-              <div class="dialog-name">${name}</div>
+              <div class="dialog-name">${name}${prefix ? html`<meshcore-bbs-badge .pubkey=${prefix}></meshcore-bbs-badge>` : ''}</div>
               <div class="dialog-type">${typeLabel}</div>
             </div>
             <button class="dialog-close" aria-label="Close" @click=${this._close}>✕</button>
@@ -324,7 +329,7 @@ export class NodeDetailDialog extends LitElement {
                   </div>
                 `
               : html`
-                  <div class="section">
+                  ${placeholder ? html`` : html`<div class="section">
                     <div class="section-header">Quick Actions</div>
                     <div class="quick-actions ${isContact ? '' : 'full'}">
                       ${isContact && (this.node as Contact).added_to_node && (isClient || isRoomServer) ? html`
@@ -344,7 +349,13 @@ export class NodeDetailDialog extends LitElement {
                               : html`<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>Add Contact`}</button>`
                         : html``}
                     </div>
-                  </div>
+                  </div>`}
+
+                  ${isContact && prefix ? html`
+                    <div class="section">
+                      <div class="section-header">BBS</div>
+                      <meshcore-bbs-actions .hass=${this.hass} .pubkey=${prefix} .name=${name}></meshcore-bbs-actions>
+                    </div>` : html``}
 
                   <div class="section">
                     <div class="section-header">Information</div>

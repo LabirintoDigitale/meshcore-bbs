@@ -17,6 +17,7 @@ import { attachDialogA11y } from '../utils/dialog-a11y';
 import type { CompanionDeviceDescriptor } from '../components/node-summary';
 import { panelStyles } from '../styles';
 import { loadMeshcoreEntityRegistry, type EntityInfo } from '../utils/classify-entity';
+import '../components/bbs-settings';
 
 interface ConfirmAction {
   title: string;
@@ -784,10 +785,10 @@ export class SettingsPage extends LitElement {
               <div class="card-title">Location</div>
               ${this._renderLocation()}
             </div>
-
-
-
           </div>
+
+          <!-- Built-in BBS (full width) -->
+          <meshcore-bbs-settings .hass=${this.hass}></meshcore-bbs-settings>
 
         </div>
       </div>

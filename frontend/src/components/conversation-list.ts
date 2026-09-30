@@ -2,6 +2,7 @@ import { LitElement, html, css } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import type { Contact, Channel } from '../types';
 import type { UnreadController } from '../chat/unread-controller';
+import './bbs-badge';
 // manage-dialog is loaded by chat-page
 
 type ChatFilter = 'all' | 'unread' | 'dms' | 'channels';
@@ -391,7 +392,7 @@ export class ConversationList extends LitElement {
         )}>
         <div class="conversation-avatar ${isContact ? '' : 'channel'}">${avatar}</div>
         <div class="conversation-info">
-          <div class="conversation-name">${name}</div>
+          <div class="conversation-name">${name}${isContact ? html`<meshcore-bbs-badge .pubkey=${id}></meshcore-bbs-badge>` : ''}</div>
           <div class="conversation-detail">${detail}</div>
         </div>
         ${unread > 0

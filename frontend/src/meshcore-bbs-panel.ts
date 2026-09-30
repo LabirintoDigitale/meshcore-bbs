@@ -12,6 +12,7 @@ import './pages/nodes-page';
 import './pages/settings-page';
 import './components/trace-dialog';
 import './components/target-picker';
+import { bbsState } from './bbs/bbs-state';
 
 @customElement('meshcore-bbs-panel')
 export class MeshCorePanel extends LitElement {
@@ -540,11 +541,13 @@ export class MeshCorePanel extends LitElement {
     super.connectedCallback();
     this._loadData();
     this._setupSubscriptions();
+    if (this.hass) bbsState.attach(this.hass);
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
     this._teardownSubscriptions();
+    bbsState.detach();
     this._closeDeviceDropdown();
   }
 
@@ -661,6 +664,9 @@ export class MeshCorePanel extends LitElement {
   }
 
   updated(changedProperties: Map<string, unknown>) {
+    // Shared BBS state (status icons, BBS actions); attach() is a no-op
+    // unless the WS connection changed.
+    if (changedProperties.has('hass') && this.hass) bbsState.attach(this.hass);
     if (changedProperties.has('hass') && this.hass && !this._config && !this._loadingStarted) {
       // hass wasn't available in connectedCallback, try loading now
       this._loadData();

@@ -14,6 +14,8 @@ import '../components/conversation-list';
 import '../components/manage-dialog';
 import '../components/message-bubble';
 import '../components/message-search';
+import '../components/bbs-badge';
+import '../components/bbs-actions';
 
 @customElement('meshcore-bbs-page')
 export class ChatPage extends LitElement {
@@ -61,6 +63,7 @@ export class ChatPage extends LitElement {
   // button, 'channels' from the header scope chip.
   @state() private _manageInitialTab: 'contacts' | 'channels' = 'contacts';
   @state() private _searchOpen = false;
+  @state() private _bbsPopupOpen = false;
   @state() private _currentEntityId: string | null = null;
   @state() private _conversationResolved = false;
   @state() private _pendingScroll: 'bottom' | 'last-read' | null = null;
@@ -400,6 +403,34 @@ export class ChatPage extends LitElement {
       margin-left: auto;
     }
 
+    .bbs-popup-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+    .bbs-popup {
+      background: var(--card-background-color, #fff);
+      border-radius: 12px;
+      padding: 16px 20px 20px;
+      width: min(420px, calc(100vw - 32px));
+      box-sizing: border-box;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+    }
+    .bbs-popup-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--primary-text-color);
+      margin-bottom: 12px;
+    }
+
     .header-action-btn {
       display: flex;
       align-items: center;
@@ -673,12 +704,14 @@ export class ChatPage extends LitElement {
             <div class="chat-main narrow-full">
               <div class="narrow-header">
                 <button class="back-button" @click=${() => (this._narrowShowMessages = false)}>← Back</button>
-                <span class="narrow-conv-name">${this._getConversationName()}${this._renderScopeChip()}</span>
+                <span class="narrow-conv-name">${this._getConversationName()}${this._renderBbsBadge()}${this._renderScopeChip()}</span>
                 <div class="chat-header-actions">
+                  ${this._renderBbsHeaderButton()}
                   <button class="header-action-btn" title="Search messages" aria-label="Search messages" @click=${() => { this._searchOpen = !this._searchOpen; }}><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0016 9.5 6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg></button>
                 </div>
               </div>
               ${this._renderChatArea()}
+              ${this._renderBbsPopup()}
             </div>
           </div>
         `;
@@ -741,14 +774,16 @@ export class ChatPage extends LitElement {
           ${this.selectedId ? html`
             <div class="narrow-header" style="display: flex; align-items: center; padding: 8px 16px;">
               <div style="flex: 1; font-size: 14px; font-weight: 500; color: var(--primary-text-color);">
-                ${this._getConversationName()}${this._renderScopeChip()}
+                ${this._getConversationName()}${this._renderBbsBadge()}${this._renderScopeChip()}
               </div>
               <div class="chat-header-actions">
+                ${this._renderBbsHeaderButton()}
                 <button class="header-action-btn" title="Search messages" aria-label="Search messages" @click=${() => { this._searchOpen = !this._searchOpen; }}><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0016 9.5 6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg></button>
               </div>
             </div>
           ` : ''}
           ${this._renderChatArea()}
+              ${this._renderBbsPopup()}
         </div>
         ${this._searchOpen ? html`
           <div class="search-panel">
@@ -1190,6 +1225,45 @@ export class ChatPage extends LitElement {
       this._inputText = mention + this._inputText;
       this.requestUpdate();
     }
+  }
+
+  /** Pubkey prefix of the selected conversation when it is a DM. */
+  private _selectedContactPrefix(): string | null {
+    if (!this.selectedId) return null;
+    const conv = this.conversations.find(
+      (c) => 'pubkey_prefix' in c && (c as Contact).pubkey_prefix === this.selectedId,
+    );
+    return conv ? (conv as Contact).pubkey_prefix : null;
+  }
+
+  private _renderBbsBadge() {
+    const prefix = this._selectedContactPrefix();
+    return prefix ? html`<meshcore-bbs-badge .pubkey=${prefix}></meshcore-bbs-badge>` : '';
+  }
+
+  private _renderBbsHeaderButton() {
+    if (!this._selectedContactPrefix()) return '';
+    return html`<button class="header-action-btn" title="BBS access" aria-label="BBS access"
+      @click=${() => { this._bbsPopupOpen = true; }}><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M4 4h16v2H4zm0 4h10v2H4zm0 4h16v2H4zm0 4h10v2H4zm13-1 3 3-3 3v-2h-3v-2h3z"/></svg></button>`;
+  }
+
+  private _renderBbsPopup() {
+    const prefix = this._selectedContactPrefix();
+    if (!this._bbsPopupOpen || !prefix) return '';
+    const close = () => { this._bbsPopupOpen = false; };
+    return html`
+      <div class="bbs-popup-overlay" @click=${close}
+        @keydown=${(e: KeyboardEvent) => { if (e.key === 'Escape') close(); }}>
+        <div class="bbs-popup" role="dialog" aria-modal="true" aria-label="BBS access"
+          @click=${(e: Event) => e.stopPropagation()}>
+          <div class="bbs-popup-header">
+            <span>BBS — ${this._getConversationName()}</span>
+            <button class="header-action-btn" aria-label="Close" @click=${close}>✕</button>
+          </div>
+          <meshcore-bbs-actions .hass=${this.hass} .pubkey=${prefix}
+            .name=${this._getConversationName()}></meshcore-bbs-actions>
+        </div>
+      </div>`;
   }
 
   private _getConversationName(): string {

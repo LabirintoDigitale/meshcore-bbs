@@ -8,6 +8,11 @@ import type {
   NeighborInfo,
   StoredMessage,
   FloodScopes,
+  BbsSnapshot,
+  BbsSettings,
+  BbsMenu,
+  BbsUserOp,
+  BbsImportSummary,
 } from './types';
 
 /**
@@ -947,4 +952,65 @@ export async function searchStoredMessages(
   } catch {
     return { results: [], count: 0 };
   }
+}
+
+// ─── Built-in BBS ───────────────────────────────────────────────────────
+// Mutations require an HA administrator; errors propagate as the native
+// hass.callWS rejection ({ code, message }) so callers can show them.
+
+export function getBbs(hass: HomeAssistant): Promise<BbsSnapshot> {
+  return hass.callWS<BbsSnapshot>({ type: 'meshcore_bbs/bbs_get' });
+}
+
+export function bbsUserOp(
+  hass: HomeAssistant,
+  op: BbsUserOp,
+  pubkey: string,
+  name = '',
+): Promise<{ message: string }> {
+  return hass.callWS<{ message: string }>({ type: 'meshcore_bbs/bbs_user', op, pubkey, name });
+}
+
+export function bbsRequestOp(
+  hass: HomeAssistant,
+  op: 'approve' | 'reject',
+  pubkey: string,
+  name = '',
+): Promise<{ message: string }> {
+  return hass.callWS<{ message: string }>({ type: 'meshcore_bbs/bbs_request', op, pubkey, name });
+}
+
+export function setBbsSettings(
+  hass: HomeAssistant,
+  settings: Partial<BbsSettings>,
+): Promise<{ settings: BbsSettings }> {
+  return hass.callWS<{ settings: BbsSettings }>({ type: 'meshcore_bbs/bbs_settings', settings });
+}
+
+export function setBbsMenus(
+  hass: HomeAssistant,
+  menus: BbsMenu[],
+  dryRun = false,
+): Promise<{ errors: string[] }> {
+  return hass.callWS<{ errors: string[] }>({
+    type: 'meshcore_bbs/bbs_menus',
+    menus,
+    dry_run: dryRun,
+  });
+}
+
+export function deleteBbsPost(hass: HomeAssistant, postId: number): Promise<{ success: boolean }> {
+  return hass.callWS<{ success: boolean }>({ type: 'meshcore_bbs/bbs_delete_post', post_id: postId });
+}
+
+export function importBbsDump(
+  hass: HomeAssistant,
+  sql: string,
+  dryRun: boolean,
+): Promise<{ summary: BbsImportSummary; imported: boolean }> {
+  return hass.callWS<{ summary: BbsImportSummary; imported: boolean }>({
+    type: 'meshcore_bbs/bbs_import',
+    sql,
+    dry_run: dryRun,
+  });
 }

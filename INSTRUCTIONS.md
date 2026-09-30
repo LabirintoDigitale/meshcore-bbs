@@ -40,6 +40,8 @@ The actions below are restricted to users with **administrator** rights on your 
 | Manage → Channels | Add / Edit / Remove (incl. channel-key changes) |
 | Devices → neighbor table | Remove neighbor · Cleanup stale neighbors |
 | Node detail → Trace | Run a path trace (sends packets, costs mesh airtime) |
+| Node detail / DM header → BBS | Grant, suspend, resume, promote or remove BBS access · approve / reject requests |
+| Settings → BBS | Turn the BBS on/off · change settings · edit menus · delete posts · import a MeshBBS dump |
 
 This is enforced at the WebSocket layer, not just the UI — a hand-crafted WS request from a non-admin user is rejected the same way.
 
@@ -162,6 +164,35 @@ The chat archive has two retention knobs that the panel UI doesn't expose — th
 5. **Save**.
 
 The per-conversation cap applies on the next message that lands. The day cutoff applies on the next HA restart.
+
+---
+
+### Running the BBS
+
+The built-in BBS answers **direct messages** (never channel messages) from contacts that have BBS access.
+
+**Switching over from the external MeshBBS (bbs.php + MySQL):**
+
+1. In Home Assistant, disable the old **MeshBBS** automation and remove the `meshbbs.yaml` package (`rest_command.bbs`, `rest_command.bbs_admin`, the `sensor.bbs_utenti` REST sensor and the `bbs_gestisci_accesso` script), then restart. The dashboard card built on `sensor.bbs_utenti` can be deleted: its status icons and actions now live on the contact names in the panel.
+2. Export the MeshBBS database as `.sql` (HeidiSQL: *Export database as SQL*, or `mysqldump BBS > bbs.sql`).
+3. Panel → **Settings → Import from MeshBBS (MySQL)** → pick the file. You get a summary (users, requests, posts, menus); click **Import and replace**. Settings such as the auto-reply text are not in the database — re-enter them in the BBS card.
+4. Switch the BBS **on** in **Settings → BBS**.
+
+**Managing access.** Open any contact — Nodes tab card, or the BBS button (☰→) in a DM conversation header — and use the **BBS** section. Icons next to names: ✅ access · ⏸️ suspended · 👑 admin · 📨 wrote to the BBS without access. The Nodes tab **BBS** and **Requests** filters list them all, including users that are not (or no longer) in the contact list.
+
+**Menus.** Settings → **BBS menus** holds the menus as JSON. Each option has a `key` and a `label` plus a `type`:
+
+- `text` — replies with `text` (add `"show_menu": true` to repeat the menu after it);
+- `menu` — opens the menu whose id is in `menu`;
+- `action` — `board` (latest posts), `write` (next message becomes a post; `0` cancels) or `exit`.
+
+Keys `m`, `menu` and `?` are reserved (they re-show the current menu). **Check** validates without saving; **Save menus** refuses to save a menu set with errors.
+
+**Mesh admin commands.** A BBS admin can send these as a direct message (prefix configurable): `!help`, `!utenti [page]`, `!info <key|name>`, `!add <key> <name>`, `!del <key|name>`, `!on` / `!off <key|name>`, `!admin <key|name> si|no`, `!richieste [page]`, `!ok <key> [name]`, `!no <key>`, `!post [page]`, `!delpost <id>`.
+
+**Contacts without access** are recorded as requests. Depending on the settings they get an auto-reply (at most once per *auto-reply interval*), and the message is sent to the configured `notify.*` service. The `meshcore_bbs_request` event (`pubkey`, `name`, `text`) is always fired, so you can build your own automations on it.
+
+BBS data lives in `/config/.storage/meshcore_bbs.bbs`.
 
 ---
 

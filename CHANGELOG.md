@@ -4,6 +4,12 @@ All notable changes to **MeshCore BBS for Home Assistant** are documented here. 
 
 ## [Unreleased]
 
+### Added
+
+- **Built-in BBS.** Direct messages from authorised contacts get a menu-driven bulletin board system (board, posting, JSON menus with placeholders, session timeout, replies split to the mesh message length) — a port of the external MeshBBS 1.4.0 (PHP + MySQL + automation), which is no longer needed. Contacts without access are recorded as requests, can get a rate-limited auto-reply, trigger an optional `notify.*` service and always fire `meshcore_bbs_request`. BBS admins can manage users, requests and posts over the mesh with `!` commands. Data is stored in `.storage/meshcore_bbs.bbs`; the BBS starts disabled.
+- **BBS status and actions on contact names.** ✅ access · ⏸️ suspended · 👑 admin · 📨 request icons in the chat list, node cards and node details; grant / suspend / resume / admin / remove and approve / reject from the node detail dialog and the DM header; **BBS** and **Requests** filters on the Nodes tab.
+- **Settings → BBS** with the on/off switch, BBS settings, a JSON menu editor with validation, bulletin-board moderation and import of a MeshBBS MySQL dump.
+
 ## [0.4.0] - 2026-09-30
 
 First release of **MeshCore BBS**, a fork of [meshcore-ha-chat](https://github.com/mwolter805/meshcore-ha-chat) by mwolter805. Releases 0.3.1 and earlier below are from the original project (published as "MeshCore Chat").

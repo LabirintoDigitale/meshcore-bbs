@@ -19,6 +19,7 @@ MeshCore BBS is based on [meshcore-ha-chat](https://github.com/mwolter805/meshco
 - Unread counts, delivery status
 - Live device telemetry, neighbor tables, and remote command issue from the same UI
 - Network-wide node discovery view (typically hundreds of nodes)
+- **Built-in BBS** answering direct messages: menus, bulletin board, access list, mesh admin commands (see [BBS](#bbs))
 
 ## Screenshots
 
@@ -113,6 +114,18 @@ Copy `custom_components/meshcore_bbs/` into your HA `config/custom_components/` 
 For a walkthrough of common tasks (adding contacts, managing channels, issuing commands, tracing paths, changing radio settings) plus operational warnings (radio-reboot requirements, the entity_id rename gotcha), see [INSTRUCTIONS.md](./INSTRUCTIONS.md).
 
 > **Permissions.** Reading messages and browsing the panel works for any authenticated HA user. **Destructive actions** — radio reconfiguration, identity regeneration, channel-key changes, issuing commands, adding / removing / blocking contacts, and running path traces — require **administrator** rights on your HA instance. See [INSTRUCTIONS.md → Permissions](./INSTRUCTIONS.md#permissions) for the full list.
+
+## BBS
+
+MeshCore BBS includes a small bulletin board system that answers **direct messages** sent to your companion radio. It replaces the older external setup (a PHP/MySQL `bbs.php` + a Home Assistant automation with `rest_command.bbs`) — nothing outside Home Assistant is needed any more.
+
+- **Access list.** Only contacts with BBS access get the menu. Next to every contact name in the panel you'll see ✅ access · ⏸️ suspended · 👑 admin · 📨 pending request. Open a contact (Nodes tab, or the BBS button in a DM header) to **Add to BBS**, **Suspend / Resume**, **Make admin**, **Remove**, or **Approve / Reject** a request. The Nodes tab has **BBS** and **Requests** filters.
+- **Menus and board.** Menus are JSON (text pages, sub-menus, and the *board*, *write* and *exit* actions) with `{name} {bbs} {users} {posts} {date} {time}` placeholders, edited in **Settings → BBS menus**. Posts can be moderated from **Settings → Bulletin board**.
+- **Contacts without access** get an optional rate-limited auto-reply, are recorded as requests, can trigger a `notify.*` service of your choice, and always fire the `meshcore_bbs_request` event for your automations.
+- **Mesh admin commands** for BBS admins: `!help !utenti !info !add !del !on !off !admin !richieste !ok !no !post !delpost`.
+- **Import** an existing MeshBBS MySQL dump (`.sql`, e.g. from HeidiSQL) in **Settings → Import from MeshBBS**.
+
+The BBS starts **off**. Disable any external BBS automation first, then switch it on in **Settings → BBS**. See [INSTRUCTIONS.md → Running the BBS](./INSTRUCTIONS.md#running-the-bbs).
 
 ## Requirements
 
