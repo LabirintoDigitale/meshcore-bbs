@@ -476,17 +476,11 @@ export class MessageBubble extends LitElement {
     this._selectedMessage = null;
   }
 
-  /**
-   * Reply pre-fills the mention plus how the message reached us, e.g.
-   * "@[Alfa 10] Route: 23BD > 5982 > 1029 · SNR: 8.5 · RSSI: -88 ".
-   * Only the first route is used: a channel message heard over several
-   * paths would otherwise overflow the mesh message length.
-   */
+  /** Reply pre-fills the mention plus how the message reached us (see replyText). */
   private _replyToSender(msg: ChatMessage) {
-    const first = msg.rxLogData && msg.rxLogData.length > 0 ? routeEntryText(msg.rxLogData[0]) : '';
     this.dispatchEvent(
       new CustomEvent('reply-to-sender', {
-        detail: { mention: `@[${msg.sender}] ${first ? `Route: ${first} ` : ''}` },
+        detail: { mention: replyText(msg) },
         bubbles: true,
         composed: true,
       }),
@@ -523,6 +517,35 @@ export function routeEntryText(e: Record<string, unknown>): string {
   if (snr !== undefined && snr !== null) parts.push(`SNR: ${snr}`);
   if (rssi !== undefined && rssi !== null) parts.push(`RSSI: ${rssi}`);
   return parts.join(' · ');
+}
+
+/**
+ * Reply text in the style of the mesh "ack" bots:
+ * "@[Alfa 10] | 9a92,86a8,146c (3 hops) | SNR: -9.25 dB | RSSI: -122 dBm | Received at: 14:56:15 "
+ * Uses the first route (a channel message heard over several paths would
+ * otherwise overflow the mesh message length); compact on purpose.
+ */
+export function replyText(msg: Pick<ChatMessage, 'sender' | 'timestamp' | 'rxLogData'>): string {
+  const parts = [`@[${msg.sender}]`];
+  const e = msg.rxLogData && msg.rxLogData.length > 0 ? msg.rxLogData[0] : null;
+  if (e) {
+    const nodes = e.path_nodes as string[] | undefined;
+    const hc = e.hop_count;
+    if (nodes && nodes.length > 0) {
+      const path = nodes.map((n: string) => n.substring(0, 4).toLowerCase()).join(',');
+      parts.push(`${path} (${nodes.length} hop${nodes.length !== 1 ? 's' : ''})`);
+    } else if (typeof hc === 'number' && hc > 0) {
+      parts.push(`${hc} hop${hc !== 1 ? 's' : ''}`);
+    } else {
+      parts.push('direct (0 hops)');
+    }
+    if (typeof e.snr === 'number') parts.push(`SNR: ${e.snr} dB`);
+    if (typeof e.rssi === 'number') parts.push(`RSSI: ${e.rssi} dBm`);
+  }
+  const t = msg.timestamp;
+  const pad = (n: number) => String(n).padStart(2, '0');
+  parts.push(`Received at: ${pad(t.getHours())}:${pad(t.getMinutes())}:${pad(t.getSeconds())}`);
+  return `${parts.join(' | ')} `;
 }
 
 /**

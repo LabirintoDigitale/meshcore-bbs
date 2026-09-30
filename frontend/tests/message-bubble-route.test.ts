@@ -2,7 +2,7 @@
 
 import { afterEach, describe, expect, it } from 'vitest';
 import { html, render } from 'lit';
-import { messageHops, routeEntryText } from '../src/components/message-bubble';
+import { messageHops, replyText, routeEntryText } from '../src/components/message-bubble';
 import type { ChatMessage, MessageGroup } from '../src/types';
 
 // Hop count next to the time on received bubbles, and Reply pre-filling
@@ -16,7 +16,7 @@ function makeGroup(opts: { rx?: Array<Record<string, unknown>>; isOutgoing?: boo
     id: 'route-msg-1',
     sender: isOutgoing ? 'Me' : 'Alfa 10',
     text: 'test',
-    timestamp: new Date('2026-09-30T12:54:53Z'),
+    timestamp: new Date(2026, 8, 30, 14, 54, 53),
     isOutgoing,
     isSystem: false,
     raw: 'test',
@@ -42,6 +42,17 @@ describe('route helpers', () => {
     expect(routeEntryText(ROUTE)).toBe('23BD > 5982 > 1029 · SNR: 8.5 · RSSI: -88');
     expect(routeEntryText({ hop_count: 2, snr: 5 })).toBe('2 hops · SNR: 5');
     expect(routeEntryText({ snr: 13.75 })).toBe('0 hops · SNR: 13.75');
+  });
+
+  it('builds a bot-style reply', () => {
+    const ts = new Date(2026, 8, 30, 14, 56, 15);
+    expect(replyText({ sender: 'Alfa 10', timestamp: ts, rxLogData: [
+      { path_nodes: ['9a92', '86a8', '146c'], snr: -9.25, rssi: -122 },
+    ] })).toBe('@[Alfa 10] | 9a92,86a8,146c (3 hops) | SNR: -9.25 dB | RSSI: -122 dBm | Received at: 14:56:15 ');
+    expect(replyText({ sender: 'X', timestamp: ts, rxLogData: [{ hop_count: 0, snr: 13.75 }] }))
+      .toBe('@[X] | direct (0 hops) | SNR: 13.75 dB | Received at: 14:56:15 ');
+    expect(replyText({ sender: 'X', timestamp: ts, rxLogData: [{ path_nodes: ['a0'] }] }))
+      .toBe('@[X] | a0 (1 hop) | Received at: 14:56:15 ');
   });
 
   it('takes the fewest hops across all heard paths', () => {
@@ -74,10 +85,10 @@ describe('message-bubble hops and reply', () => {
     const reply = [...bubble.shadowRoot!.querySelectorAll('.message-dialog-action')]
       .find((b) => b.textContent!.includes('Reply')) as HTMLElement;
     reply.click();
-    expect(mention).toBe('@[Alfa 10] Route: 23BD > 5982 > 1029 · SNR: 8.5 · RSSI: -88 ');
+    expect(mention).toBe('@[Alfa 10] | 23bd,5982,1029 (3 hops) | SNR: 8.5 dB | RSSI: -88 dBm | Received at: 14:54:53 ');
   });
 
-  it('Reply without route data is just the mention', async () => {
+  it('Reply without route data has the mention and the time', async () => {
     const bubble = await mountBubble(makeGroup({}));
     let mention = '';
     bubble.addEventListener('reply-to-sender', (e) => { mention = (e as CustomEvent).detail.mention; });
@@ -85,6 +96,6 @@ describe('message-bubble hops and reply', () => {
     await bubble.updateComplete;
     ([...bubble.shadowRoot!.querySelectorAll('.message-dialog-action')]
       .find((b) => b.textContent!.includes('Reply')) as HTMLElement).click();
-    expect(mention).toBe('@[Alfa 10] ');
+    expect(mention).toBe('@[Alfa 10] | Received at: 14:54:53 ');
   });
 });

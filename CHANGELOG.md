@@ -4,6 +4,12 @@ All notable changes to **MeshCore BBS for Home Assistant** are documented here. 
 
 ## [Unreleased]
 
+## [0.5.5] - 2026-09-30
+
+### Changed
+
+- **Bot-style Reply.** Reply now pre-fills a compact line in the style of the mesh "ack" bots, with the reception time: `@[Alfa 10] | 9a92,86a8,146c (3 hops) | SNR: -9.25 dB | RSSI: -122 dBm | Received at: 14:56:15`. Shorter than the 0.5.4 format (no spaces around the path separators, no `·`), which matters close to the mesh message-length limit.
+
 ## [0.5.4] - 2026-09-30
 
 ### Added
