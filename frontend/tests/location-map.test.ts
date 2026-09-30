@@ -22,7 +22,9 @@ afterEach(() => { document.body.innerHTML = ''; });
 
 describe('location map', () => {
   it('uses free, keyless tile sources', () => {
-    expect(TILE_SOURCES.map.url).toContain('tile.openstreetmap.org');
+    expect(TILE_SOURCES.map.url).toContain('basemaps.cartocdn.com');
+    // OSM's own tile servers block LAN-origin requests (tile usage policy)
+    expect(TILE_SOURCES.map.url).not.toContain('tile.openstreetmap.org');
     expect(TILE_SOURCES.satellite.url).toContain('World_Imagery');
     expect(TILE_SOURCES.satellite.url).not.toContain('google');
     expect(TILE_SOURCES.satellite.attribution).toContain('Esri');

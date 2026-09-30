@@ -13,9 +13,12 @@ export type MapLayer = 'map' | 'satellite';
 
 /** Free tile sources: no API key, no account; attribution required. */
 export const TILE_SOURCES: Record<MapLayer, { url: string; attribution: string; maxZoom: number }> = {
+  // CARTO Voyager (OpenStreetMap data). The OSM Foundation's own tile
+  // servers (tile.openstreetmap.org) block requests coming from a LAN
+  // Home Assistant origin ("Access blocked ... tile usage policy").
   map: {
-    url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-    attribution: '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>',
+    url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+    attribution: '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors © <a href="https://carto.com/attributions" target="_blank" rel="noopener">CARTO</a>',
     maxZoom: 19,
   },
   satellite: {
@@ -106,7 +109,11 @@ export class LocationMap extends LitElement {
       if (!this._tiles || changed.has('_layer')) {
         const src = TILE_SOURCES[this._layer];
         this._tiles?.remove();
-        this._tiles = tileLayer(src.url, { attribution: src.attribution, maxZoom: src.maxZoom }).addTo(this._map);
+        this._tiles = tileLayer(src.url, {
+          attribution: src.attribution,
+          maxZoom: src.maxZoom,
+          subdomains: 'abcd',
+        }).addTo(this._map);
       }
     } catch (err) {
       console.warn('MeshCore BBS: map unavailable', err);

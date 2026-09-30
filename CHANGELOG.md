@@ -4,6 +4,12 @@ All notable changes to **MeshCore BBS for Home Assistant** are documented here. 
 
 ## [Unreleased]
 
+## [0.6.5] - 2026-09-30
+
+### Fixed
+
+- **"Access blocked" on the map.** OpenStreetMap's volunteer tile servers block tile requests coming from a Home Assistant on a local address (tile usage policy). The **Map** layer now uses CARTO Voyager tiles (OpenStreetMap data, free, no key, attribution shown); **Satellite** stays on Esri World Imagery.
+
 ## [0.6.4] - 2026-09-30
 
 ### Changed
