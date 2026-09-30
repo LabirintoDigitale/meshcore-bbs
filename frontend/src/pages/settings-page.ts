@@ -1121,7 +1121,6 @@ export class SettingsPage extends LitElement {
             type="number"
             class="form-input"
             min="1"
-            max=${String(this._deviceConfig.max_tx_power ?? 30)}
             .value=${String(this._editValues['tx_power'] ?? this._deviceConfig.tx_power ?? 17)}
             @input=${(e: Event) => {
               this._editValues['tx_power'] = Number((e.target as HTMLInputElement).value);

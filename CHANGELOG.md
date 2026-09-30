@@ -4,6 +4,10 @@ All notable changes to **MeshCore BBS for Home Assistant** are documented here. 
 
 ## [Unreleased]
 
+### Changed
+
+- The TX power field no longer has an upper bound in the page: the radio's maximum is shown next to the label as information only; the firmware decides what it accepts.
+
 ## [0.5.9] - 2026-09-30
 
 ### Fixed
