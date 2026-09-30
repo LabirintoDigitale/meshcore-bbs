@@ -7,6 +7,7 @@ import { getBabelOutputPlugin } from '@rollup/plugin-babel';
 
 const dev = process.env.ROLLUP_WATCH === 'true';
 const pkg = JSON.parse(fs.readFileSync('./package.json', 'utf-8'));
+const leafletCss = fs.readFileSync('./node_modules/leaflet/dist/leaflet.css', 'utf-8');
 
 export default {
   input: 'src/meshcore-bbs-panel.ts',
@@ -71,6 +72,15 @@ export default {
       transform(code, id) {
         if (!id.split(path.sep).join('/').endsWith('/src/constants.ts')) return null;
         return { code: code.replace('__PANEL_VERSION__', pkg.version), map: null };
+      },
+    },
+    // Inline Leaflet's stylesheet into the map component: the map renders
+    // inside a shadow root, where document-level CSS doesn't apply.
+    {
+      name: 'leaflet-css',
+      transform(code, id) {
+        if (!id.split(path.sep).join('/').endsWith('/src/components/location-map.ts')) return null;
+        return { code: code.replace("'__LEAFLET_CSS__'", JSON.stringify(leafletCss)), map: null };
       },
     },
     resolve(),

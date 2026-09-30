@@ -4,6 +4,12 @@ All notable changes to **MeshCore BBS for Home Assistant** are documented here. 
 
 ## [Unreleased]
 
+## [0.6.4] - 2026-09-30
+
+### Changed
+
+- **Maps no longer use Google.** Maps are now interactive Leaflet maps bundled with the panel: **Map** uses OpenStreetMap tiles, **Satellite** uses Esri World Imagery — both free, with no key or account (attribution shown on the map). Scroll-wheel zoom works directly, without holding Ctrl. Leaflet (BSD-2-Clause) is bundled into the panel.
+
 ## [0.6.3] - 2026-09-30
 
 ### Added

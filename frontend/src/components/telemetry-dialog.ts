@@ -4,7 +4,6 @@ import { requestTelemetry, type LppValue, type TelemetryResult } from '../api';
 import type { Contact, HomeAssistant } from '../types';
 import { attachDialogA11y } from '../utils/dialog-a11y';
 import './location-map';
-export { osmEmbedUrl } from './location-map';
 
 const UNITS: Record<string, string> = {
   temperature: '°C',

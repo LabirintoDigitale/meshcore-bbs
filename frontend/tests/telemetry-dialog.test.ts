@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { formatLpp, osmEmbedUrl, telemetryPosition } from '../src/components/telemetry-dialog';
+import { formatLpp, telemetryPosition } from '../src/components/telemetry-dialog';
 import type { Contact, HomeAssistant } from '../src/types';
 
 const CONTACT = {
@@ -33,10 +33,12 @@ async function mount(callWS: ReturnType<typeof vi.fn>, contact = CONTACT): Promi
 
 const text = (el: Dlg) => el.shadowRoot!.textContent!.replace(/\s+/g, ' ');
 
-async function mapSrc(el: Dlg): Promise<string> {
-  const map = el.shadowRoot!.querySelector('meshcore-location-map') as HTMLElement & { updateComplete: Promise<unknown> };
+async function mapPos(el: Dlg): Promise<string> {
+  const map = el.shadowRoot!.querySelector('meshcore-location-map') as HTMLElement & {
+    updateComplete: Promise<unknown>; lat: number; lon: number;
+  };
   await map.updateComplete;
-  return map.shadowRoot!.querySelector('iframe')!.getAttribute('src')!;
+  return `${map.lat},${map.lon}`;
 }
 
 afterEach(() => { document.body.innerHTML = ''; });
@@ -57,12 +59,6 @@ describe('telemetry helpers', () => {
     const zeroFix = [{ channel: 1, type: 'gps', value: { latitude: 0, longitude: 0, altitude: 0 } }];
     expect(telemetryPosition(zeroFix, CONTACT)?.source).toBe('advert');
   });
-
-  it('builds an OpenStreetMap embed with a marker', () => {
-    const url = osmEmbedUrl(46.02, 11.9);
-    expect(url).toContain('openstreetmap.org/export/embed.html');
-    expect(url).toContain('marker=46.020000,11.900000');
-  });
 });
 
 describe('meshcore-telemetry-dialog', () => {
@@ -73,7 +69,7 @@ describe('meshcore-telemetry-dialog', () => {
     expect(callWS).toHaveBeenCalledWith({ type: 'meshcore_bbs/request_telemetry', pubkey_prefix: '1d71d95287fc', entry_id: 'E1' });
     expect(text(el)).toContain('Temperature (ch 2)');
     expect(text(el)).toContain('Position (GPS, telemetry)');
-    expect(await mapSrc(el)).toContain('marker=46.020000,11.900000');
+    expect(await mapPos(el)).toBe('46.02,11.9');
   });
 
   it('shows the error and falls back to the advertised position', async () => {
@@ -81,7 +77,7 @@ describe('meshcore-telemetry-dialog', () => {
     const el = await mount(callWS);
     await vi.waitFor(() => expect(text(el)).toContain('No telemetry received'));
     expect(text(el)).toContain('Position (advertised)');
-    expect(await mapSrc(el)).toContain('marker=46.100000,12.200000');
+    expect(await mapPos(el)).toBe('46.1,12.2');
   });
 
   it('Refresh sends a new request', async () => {

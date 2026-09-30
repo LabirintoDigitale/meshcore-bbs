@@ -1,9 +1,9 @@
 // @vitest-environment happy-dom
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { osmEmbedUrl, satelliteEmbedUrl } from '../src/components/location-map';
+import { TILE_SOURCES } from '../src/components/location-map';
 
-type MapEl = HTMLElement & { updateComplete: Promise<unknown>; lat: number; lon: number };
+type MapEl = HTMLElement & { updateComplete: Promise<unknown>; lat: number; lon: number; tileUrl: string };
 
 async function mount(): Promise<MapEl> {
   await import('../src/components/location-map');
@@ -14,7 +14,6 @@ async function mount(): Promise<MapEl> {
   return el;
 }
 
-const iframe = (el: MapEl) => el.shadowRoot!.querySelector('iframe')!;
 const button = (el: MapEl, label: string) =>
   [...el.shadowRoot!.querySelectorAll('.switch button')].find((b) => b.textContent === label) as HTMLElement;
 
@@ -22,19 +21,20 @@ beforeEach(() => { try { localStorage.clear(); } catch { /* ignore */ } });
 afterEach(() => { document.body.innerHTML = ''; });
 
 describe('location map', () => {
-  it('builds map and satellite embed URLs', () => {
-    expect(osmEmbedUrl(46.03274, 11.71045)).toContain('marker=46.032740,11.710450');
-    expect(satelliteEmbedUrl(46.03274, 11.71045)).toBe(
-      'https://maps.google.com/maps?q=46.032740,11.710450&t=k&z=16&output=embed');
+  it('uses free, keyless tile sources', () => {
+    expect(TILE_SOURCES.map.url).toContain('tile.openstreetmap.org');
+    expect(TILE_SOURCES.satellite.url).toContain('World_Imagery');
+    expect(TILE_SOURCES.satellite.url).not.toContain('google');
+    expect(TILE_SOURCES.satellite.attribution).toContain('Esri');
   });
 
   it('starts on the map and switches to satellite', async () => {
     const el = await mount();
-    expect(iframe(el).src).toContain('openstreetmap.org');
+    expect(el.tileUrl).toBe(TILE_SOURCES.map.url);
+    expect(el.shadowRoot!.querySelector('.map')).not.toBeNull();
     button(el, 'Satellite').click();
     await el.updateComplete;
-    expect(iframe(el).src).toContain('maps.google.com');
-    expect(iframe(el).src).toContain('t=k');
+    expect(el.tileUrl).toBe(TILE_SOURCES.satellite.url);
     expect(button(el, 'Satellite').getAttribute('aria-pressed')).toBe('true');
   });
 
@@ -43,13 +43,12 @@ describe('location map', () => {
     button(first, 'Satellite').click();
     await first.updateComplete;
     const second = await mount();
-    expect(iframe(second).src).toContain('maps.google.com');
+    expect(second.tileUrl).toBe(TILE_SOURCES.satellite.url);
   });
 
-  it('links to OpenStreetMap and Google Maps', async () => {
+  it('shows the coordinates and an OpenStreetMap link', async () => {
     const el = await mount();
-    const links = [...el.shadowRoot!.querySelectorAll('a')].map((a) => a.getAttribute('href'));
-    expect(links[0]).toContain('openstreetmap.org/?mlat=46.03274');
-    expect(links[1]).toBe('https://www.google.com/maps/search/?api=1&query=46.03274,11.71045');
+    expect(el.shadowRoot!.textContent).toContain('46.03274, 11.71045');
+    expect(el.shadowRoot!.querySelector('.meta a')!.getAttribute('href')).toContain('openstreetmap.org/?mlat=46.03274');
   });
 });
