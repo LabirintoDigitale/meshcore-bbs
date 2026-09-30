@@ -886,12 +886,18 @@ export class MessageStore {
       derivedStatus = 'sent';
     }
 
-    // Find most recent outgoing message
-    let msg: ChatMessage | undefined;
-    for (let i = this._messages.length - 1; i >= 0; i--) {
-      if (this._messages[i].isOutgoing) {
-        msg = this._messages[i];
-        break;
+    // Stored outgoing messages use send_id as their id: prefer an exact
+    // match (late repeater echoes can arrive after newer messages were
+    // sent), else fall back to the most recent outgoing message.
+    let msg: ChatMessage | undefined = this._messages.find(
+      (m) => m.isOutgoing && m.id === sendId,
+    );
+    if (!msg && !eventData.late_echo) {
+      for (let i = this._messages.length - 1; i >= 0; i--) {
+        if (this._messages[i].isOutgoing) {
+          msg = this._messages[i];
+          break;
+        }
       }
     }
 
@@ -904,6 +910,9 @@ export class MessageStore {
       };
       if (repeaterCount !== undefined) {
         msg.repeaterCount = repeaterCount;
+      }
+      if (rxLogData && rxLogData.length > 0) {
+        msg.rxLogData = rxLogData;
       }
       this._notify();
     }

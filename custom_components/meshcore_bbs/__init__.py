@@ -44,6 +44,7 @@ from .const import (
 from .bbs import Bbs
 from .bbs_ws import async_register_bbs_commands
 from .channel_scopes import ChannelScopeStore
+from .late_echo import LateEchoTracker
 from .message_store import MessageStore
 from .panel import async_register_panel, async_remove_panel
 from .unread_tracking import EVENT_UNREAD_UPDATED, UnreadTracker
@@ -213,6 +214,13 @@ async def async_setup_entry(
         await scopes.async_load()
         bucket["channel_scopes"] = scopes
 
+    # Late repeater-echo correlation for outgoing channel messages that
+    # upstream reported with no echo (its window is only ~4 s).
+    if "late_echo" not in bucket:
+        tracker_late = LateEchoTracker(hass)
+        tracker_late.start()
+        bucket["late_echo"] = tracker_late
+
     # Built-in BBS: a process-wide singleton like the stores above. It
     # answers direct messages only once the user enables it in the panel.
     if "bbs" not in bucket:
@@ -337,6 +345,9 @@ async def async_unload_entry(
         bbs = bucket.pop("bbs", None)
         if bbs is not None:
             await bbs.async_shutdown()
+        late = bucket.pop("late_echo", None)
+        if late is not None:
+            late.stop()
 
     return True
 
@@ -466,6 +477,18 @@ def _make_message_handler(hass: HomeAssistant, entry_id: str):
             record.setdefault("delivery_status", "sent")
 
         await store.store_message(entity_id, record)
+
+        # Outgoing channel message nobody was heard repeating within
+        # upstream's short window: keep listening for a late echo.
+        if (
+            record["outgoing"]
+            and record.get("message_type") == "channel"
+            and not record.get("rx_log_data")
+            and not record.get("repeater_count")
+        ):
+            late = hass.data.get(DOMAIN, {}).get("late_echo")
+            if late is not None:
+                late.watch(entity_id, msg_id, record)
 
         # Inbound (non-outgoing) messages may have advanced the unread
         # count for this conversation. Compute the new derived count

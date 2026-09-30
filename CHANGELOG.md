@@ -4,6 +4,13 @@ All notable changes to **MeshCore BBS for Home Assistant** are documented here. 
 
 ## [Unreleased]
 
+## [0.5.7] - 2026-09-30
+
+### Fixed
+
+- **Long channel messages shown as "Unheard" although repeated.** The upstream meshcore integration only listens ~4 s for repeaters re-broadcasting an outgoing channel message; the echo of a long message can arrive later (observed: 6.1 s for a 151-byte packet from the nearest repeater). MeshCore BBS now keeps listening for 20 s after such a message and, when the echo arrives, updates it to "Repeated" with the repeater path, SNR and RSSI in the message popup — live in the panel and in the stored history.
+- The panel applies delivery updates to the message they belong to (by send id) instead of the most recent outgoing message.
+
 ## [0.5.6] - 2026-09-30
 
 ### Added

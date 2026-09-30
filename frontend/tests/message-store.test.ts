@@ -489,3 +489,44 @@ describe('MessageStore Phase 3 — setUserAtBottom R5c reset', () => {
     expect(notified).toBe(0);
   });
 });
+
+describe('MessageStore — late repeater echo delivery updates', () => {
+  interface Priv {
+    _messages: Array<Record<string, unknown>>;
+    _handleDeliveryUpdate(d: Record<string, unknown>): void;
+  }
+  function setup(): Priv {
+    const store = track(new MessageStore(makeConfig()));
+    store.setHass(makeMockHass());
+    const p = store as unknown as Priv;
+    const base = { sender: 'TestNode', isOutgoing: true, isSystem: false, mentions: [], raw: '' };
+    p._messages = [
+      { ...base, id: 'cf514533', text: 'long one', timestamp: new Date('2026-09-30T14:19:08Z'),
+        deliveryStatus: { status: 'sent', repeaterCount: 0 } },
+      { ...base, id: 'aa000001', text: 'newer', timestamp: new Date('2026-09-30T14:19:20Z'),
+        deliveryStatus: { status: 'sent', repeaterCount: 0 } },
+    ];
+    return p;
+  }
+  const echo = { path: '6522', path_nodes: ['6522'], hop_count: 1, snr: 9.75 };
+
+  it('updates the message with the matching send_id, not the newest one', () => {
+    const p = setup();
+    p._handleDeliveryUpdate({
+      entity_id: 'binary_sensor.x', send_id: 'cf514533', rx_log_data: [echo],
+      repeater_count: 1, progressive: false, late_echo: true,
+    });
+    expect(p._messages[0].deliveryStatus).toMatchObject({ status: 'sent', repeaterCount: 1 });
+    expect(p._messages[0].rxLogData).toEqual([echo]);
+    expect(p._messages[1].deliveryStatus).toMatchObject({ repeaterCount: 0 });
+  });
+
+  it('ignores a late echo for a message not in the buffer', () => {
+    const p = setup();
+    p._handleDeliveryUpdate({
+      entity_id: 'binary_sensor.x', send_id: 'unknown1', rx_log_data: [echo],
+      repeater_count: 1, progressive: false, late_echo: true,
+    });
+    expect(p._messages.every((m) => (m.deliveryStatus as { repeaterCount: number }).repeaterCount === 0)).toBe(true);
+  });
+});
