@@ -95,3 +95,35 @@ describe('repeater Radio activity tile', () => {
     expect(radioTile(el)).not.toContain('Last reading');
   });
 });
+
+describe('repeater sensor rows with no current reading', () => {
+  afterEach(() => { document.body.innerHTML = ''; });
+
+  it('shows the last known temperature from history, marked as stale', async () => {
+    const TEMP = 'sensor.meshcore_652249ca3e_temperature_galileo_rpt1';
+    const callWS = vi.fn(async (msg: { type: string; entity_ids?: string[] }) =>
+      msg.type === 'history/history_during_period' && msg.entity_ids?.[0] === TEMP
+        ? { [TEMP]: [{ s: '21.5', lu: 1_790_760_000 }, { s: 'unknown', lu: 1_790_770_000 }] }
+        : {});
+    const el = document.createElement('meshcore-node-summary') as Card;
+    el.hass = {
+      states: {
+        [TEMP]: { entity_id: TEMP, state: 'unknown', attributes: { unit_of_measurement: '°C' }, last_updated: '2026-09-30T12:00:00Z' },
+      },
+      entities: {},
+      callWS,
+      connection: { subscribeEvents: async () => () => {} },
+    } as unknown as HomeAssistant;
+    el.device = repeater();
+    el.entities = [classifyEntity({ entity_id: TEMP, original_name: 'Temperature' })]
+      .filter((e): e is EntityInfo => e !== null);
+    document.body.appendChild(el);
+    await el.updateComplete;
+
+    await vi.waitFor(() => {
+      const stale = el.shadowRoot!.querySelector('.si-value.stale');
+      expect(stale?.textContent).toContain('21.5');
+    });
+    expect(el.shadowRoot!.querySelector('.si-value.stale')!.getAttribute('title')).toContain('Last known value');
+  });
+});

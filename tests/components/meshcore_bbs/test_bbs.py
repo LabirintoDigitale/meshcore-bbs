@@ -273,6 +273,26 @@ async def test_event_ignored_when_disabled_channel_outgoing_or_own(
     assert calls == []
 
 
+async def test_messages_from_repeaters_are_ignored(hass: HomeAssistant, bbs: Bbs) -> None:
+    calls = async_mock_service(hass, MESHCORE_DOMAIN, "send_message")
+    repeater_key = "eeeeee000005" + "00" * 26
+    hass.data[MESHCORE_DOMAIN] = {"e1": SimpleNamespace(
+        pubkey=OWN,
+        get_all_contacts=lambda: [
+            {"public_key": repeater_key, "type": 2, "adv_name": "Rpt"},
+            {"public_key": STRANGER + "00" * 26, "type": 1, "adv_name": "Carl"},
+        ],
+    )}
+    await bbs.async_handle_event(_event(pubkey_prefix="eeeeee000005", text="OK - clock set"))
+    await hass.async_block_till_done()
+    assert calls == [] and "eeeeee000005" not in bbs.data["requests"]
+
+    # A chat contact (type 1) is still handled
+    await bbs.async_handle_event(_event(pubkey_prefix=STRANGER, text="ciao"))
+    await hass.async_block_till_done()
+    assert len(calls) == 1 and STRANGER in bbs.data["requests"]
+
+
 async def test_unknown_sender_fires_event_and_notifies(hass: HomeAssistant, bbs: Bbs) -> None:
     async_mock_service(hass, MESHCORE_DOMAIN, "send_message")
     notified = async_mock_service(hass, "notify", "my_phone")

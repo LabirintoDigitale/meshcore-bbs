@@ -9,7 +9,11 @@ import {
   type SensorEval,
 } from '../utils/sensor-thresholds';
 import { longPress } from '../directives/long-press';
-import { fetchLastNonZeroReading, type AirtimeReading } from '../utils/airtime-history';
+import {
+  fetchLastNonZeroReading,
+  fetchLastNumericReading,
+  type AirtimeReading,
+} from '../utils/airtime-history';
 import './stat-bar';
 import './stacked-bar';
 import './info-tip';
@@ -93,8 +97,11 @@ export class NodeSummary extends LitElement {
   // Last non-zero airtime-utilization reading per entity, used while the
   // live sensor reads 0 because upstream has only one repeater poll.
   @state() private _airtimeFallback: Record<string, AirtimeReading | null> = {};
+  // Last numeric value of sensor rows that currently read unknown.
+  @state() private _lastKnown: Record<string, AirtimeReading | null> = {};
   // entity_id -> "<entity_id>@<last_updated>" already looked up.
   private _airtimeFetchKeys: Record<string, string> = {};
+  private _lastKnownFetchKeys: Record<string, string> = {};
 
   static styles = css`
     /* container-type lets the sensor grid's @container query react to this
@@ -169,6 +176,11 @@ export class NodeSummary extends LitElement {
 
     /* Radio activity legend (matches the stacked-bar inline legend
        layout used by Messages Sent / Received) */
+    .si-value.stale {
+      font-style: italic;
+      opacity: 0.7;
+    }
+
     .ra-history-note {
       margin-top: 4px;
       font-size: 11px;
@@ -431,6 +443,7 @@ export class NodeSummary extends LitElement {
     if (!this.hass || !this.device) return;
     if (!changed.has('hass') && !changed.has('device') && !changed.has('entities')) return;
     this._maybeFetchAirtimeHistory();
+    this._maybeFetchLastKnown();
     const nbSent = this._findEntityIdMatching('nb_sent');
     const key = nbSent?.entity_id ?? null;
     if (key && key !== this._rateHistoryKey) {
@@ -632,6 +645,28 @@ export class NodeSummary extends LitElement {
       fetchLastNonZeroReading(this.hass, eid)
         .then((reading) => { this._airtimeFallback = { ...this._airtimeFallback, [eid]: reading }; })
         .catch(() => { this._airtimeFallback = { ...this._airtimeFallback, [eid]: null }; });
+    }
+  }
+
+  /**
+   * Repeater/client sensor rows that read unknown (upstream telemetry
+   * sensors are not restored after an HA restart) get their last numeric
+   * value from the recorder history — once per state update.
+   */
+  private _maybeFetchLastKnown() {
+    if (!this.hass || !this.device || this.device.type === 'companion') return;
+    for (const info of this.entities) {
+      if (info.booleanProblem) continue;
+      const stateObj = this.hass.states[info.entity_id];
+      const raw = stateObj?.state;
+      if (raw !== 'unknown' && raw !== 'unavailable') continue;
+      const eid = info.entity_id;
+      const key = `${eid}@${stateObj?.last_updated ?? ''}`;
+      if (this._lastKnownFetchKeys[eid] === key) continue;
+      this._lastKnownFetchKeys[eid] = key;
+      fetchLastNumericReading(this.hass, eid)
+        .then((reading) => { this._lastKnown = { ...this._lastKnown, [eid]: reading }; })
+        .catch(() => { this._lastKnown = { ...this._lastKnown, [eid]: null }; });
     }
   }
 
@@ -1260,8 +1295,12 @@ export class NodeSummary extends LitElement {
       `;
     }
 
-    const value = this._readNumber(info.entity_id);
     const stateObj = this.hass?.states[info.entity_id];
+    const rawState = stateObj?.state;
+    const lastKnown = (rawState === 'unknown' || rawState === 'unavailable')
+      ? this._lastKnown[info.entity_id] ?? null
+      : null;
+    const value = lastKnown ? lastKnown.value : this._readNumber(info.entity_id);
     const unit = (stateObj?.attributes?.unit_of_measurement as string) ?? '';
     const ev = info.metricKey ? this._evaluateForRow(info.metricKey, value, info) : null;
     const band = ev?.band ?? 'info';
@@ -1279,7 +1318,12 @@ export class NodeSummary extends LitElement {
         }
       : null;
 
-    const formattedValue = this._formatRowValue(info, value, stateObj?.state);
+    const formattedValue = lastKnown
+      ? this._formatRowValue(info, value, String(value))
+      : this._formatRowValue(info, value, stateObj?.state);
+    const staleTitle = lastKnown
+      ? `Last known value (${new Date(lastKnown.ts).toLocaleString()}) — the sensor has no current reading yet`
+      : '';
 
     return html`
       <div class="sensor-item"
@@ -1290,7 +1334,7 @@ export class NodeSummary extends LitElement {
         <span class="si-label">
           ${info.label}${tooltipEv ? this._renderInfoTip(tooltipEv) : nothing}
         </span>
-        <span class="si-value">
+        <span class="si-value ${lastKnown ? 'stale' : ''}" title=${staleTitle}>
           ${formattedValue}${unit ? html`<span class="unit">${unit}</span>` : nothing}
         </span>
         <span class="si-bar">

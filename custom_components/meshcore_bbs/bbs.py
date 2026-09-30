@@ -55,6 +55,10 @@ DEFAULT_REPLY_DELAY = 3.0
 SAVE_DELAY_SECONDS = 1.0
 
 VALID_ACTIONS = ("board", "write", "exit")
+# MeshCore advert types the BBS never answers: repeaters (2), room servers
+# (3) and sensors (4) send CLI replies / status as direct messages, and an
+# auto-reply to a repeater would be interpreted as a CLI command.
+NON_CHAT_CONTACT_TYPES = (2, 3, 4)
 VALID_OPTION_TYPES = ("text", "menu", "action")
 RESERVED_KEYS = ("m", "menu", "?")
 
@@ -915,6 +919,25 @@ class Bbs:
                 prefixes.append(clean_pubkey(pub)[:12])
         return prefixes
 
+    def _sender_type(self, pk: str) -> int | None:
+        """Advert type of the contact ``pk`` from the meshcore coordinators."""
+        for coord in (self.hass.data.get(MESHCORE_DOMAIN) or {}).values():
+            get_all = getattr(coord, "get_all_contacts", None)
+            if not callable(get_all):
+                continue
+            try:
+                contacts = get_all() or []
+            except Exception:  # pragma: no cover - defensive
+                continue
+            for contact in contacts:
+                if not isinstance(contact, dict):
+                    continue
+                key = clean_pubkey(contact.get("public_key") or contact.get("pubkey_prefix") or "")
+                if key and prefixes_match(pk, key):
+                    ctype = contact.get("type")
+                    return ctype if isinstance(ctype, int) else None
+        return None
+
     @staticmethod
     def is_inbound_direct(data: dict[str, Any]) -> bool:
         """Mirror the old automation's filter: DMs only, never our own."""
@@ -937,6 +960,8 @@ class Bbs:
             return
         pk = clean_pubkey(data.get("pubkey_prefix") or data.get("public_key") or "")
         if not pk or any(prefixes_match(pk, own) for own in self._own_prefixes()):
+            return
+        if self._sender_type(pk) in NON_CHAT_CONTACT_TYPES:
             return
         text = str(data.get("text") or data.get("message") or "")
         name = str(data.get("sender_name") or "")

@@ -4,7 +4,12 @@ All notable changes to **MeshCore BBS for Home Assistant** are documented here. 
 
 ## [Unreleased]
 
+## [0.5.3] - 2026-09-30
+
 ### Fixed
+
+- **The BBS no longer answers repeaters, room servers or sensors.** Their CLI replies and status messages arrive as direct messages; the BBS recorded them as access requests and sent the auto-reply, which a repeater would read as a CLI command. Senders whose contact type is repeater (2), room server (3) or sensor (4) are now ignored. Existing requests from such nodes can be rejected from the node detail dialog.
+- **Unknown repeater/client sensor values.** Upstream telemetry sensors (e.g. temperature) are not restored after a Home Assistant restart and read unknown until the next poll. The Devices tab now shows their last known value from the recorder history, in italics, with the time in the tooltip.
 
 - **Repeater Radio activity no longer stuck at 0%.** The upstream meshcore integration computes a repeater's airtime utilization from two consecutive status polls, so it reports 0% after every Home Assistant restart until the second poll arrives (often an hour or more). While a utilization sensor reads 0, the Devices tab tile now shows the last real reading from the recorder history, marked "Last reading · <date time>".
 

@@ -1,6 +1,6 @@
 {
   "name": "meshcore-bbs-panel",
-  "version": "0.5.2",
+  "version": "0.5.3",
   "private": true,
   "description": "MeshCore sidebar panel for Home Assistant",
   "scripts": {
