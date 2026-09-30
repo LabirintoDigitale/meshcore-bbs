@@ -665,6 +665,27 @@ async def test_ws_get_managed_devices_happy(
     assert len(payload["clients"]) == 1
 
 
+async def test_ws_get_managed_devices_firmware_from_device_registry(
+    hass: HomeAssistant, coordinator: MagicMock
+) -> None:
+    """Repeater firmware falls back to the meshcore-owned registry device."""
+    from homeassistant.helpers import device_registry as dr
+
+    entry = MockConfigEntry(domain=MESHCORE_DOMAIN, entry_id="meshcore_entry")
+    entry.add_to_hass(hass)
+    dr.async_get(hass).async_get_or_create(
+        config_entry_id=entry.entry_id,
+        identifiers={(MESHCORE_DOMAIN, "meshcore_entry_repeater_abc123")},
+        sw_version="1.9.0",
+    )
+    coordinator._tracked_repeaters = [
+        {"pubkey_prefix": "abc123", "name": "Repeater 1", "update_interval": 300},
+    ]
+    conn = _Connection()
+    await _call_ws(ws_api.ws_get_managed_devices, hass, conn, {"id": 1})
+    assert conn.results[0][1]["repeaters"][0]["firmware_version"] == "1.9.0"
+
+
 async def test_ws_get_managed_devices_error_no_coordinator(
     hass: HomeAssistant,
 ) -> None:

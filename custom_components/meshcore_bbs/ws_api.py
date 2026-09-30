@@ -870,9 +870,14 @@ def ws_get_managed_devices(hass, connection, msg):
         # Look up firmware version from HA device registry
         fw_version = stats.get("firmware_version")
         if not fw_version:
-            device = dev_reg.async_get_device(
-                identifiers={(MESHCORE_DOMAIN, f"{entry_id}_repeater_{pubkey_prefix}")}
-            )
+            identifier = (MESHCORE_DOMAIN, f"{entry_id}_repeater_{pubkey_prefix}")
+            # HA 2026.9 made async_get_device raise (identifiers are no
+            # longer unique across config entries); scope the lookup to the
+            # meshcore entry that owns the device. Older HA lacks the new API.
+            if hasattr(dev_reg, "async_get_device_by_identifier"):
+                device = dev_reg.async_get_device_by_identifier(identifier, entry_id)
+            else:
+                device = dev_reg.async_get_device(identifiers={identifier})
             if device:
                 fw_version = device.sw_version
 
