@@ -24,7 +24,7 @@ function hass(callWS: ReturnType<typeof vi.fn>): HomeAssistant {
 
 async function mount(target: Contact, callWS: ReturnType<typeof vi.fn>): Promise<Dlg> {
   await import('../src/components/route-dialog');
-  const el = document.createElement('meshcore-route-dialog') as Dlg;
+  const el = document.createElement('meshcore-route-dialog') as unknown as Dlg;
   Object.assign(el, { hass: hass(callWS), contact: target, entryId: 'E1', open: true });
   document.body.appendChild(el);
   await el.updateComplete;

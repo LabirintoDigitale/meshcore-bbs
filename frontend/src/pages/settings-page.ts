@@ -1114,12 +1114,14 @@ export class SettingsPage extends LitElement {
     return html`
       <div class="section-row">
         <div class="form-group-inline">
-          <label class="form-label">TX Power (dBm)</label>
+          <label class="form-label">TX Power (dBm)${this._deviceConfig.max_tx_power
+            ? html` <span style="font-weight: 400; opacity: 0.7;">max ${this._deviceConfig.max_tx_power}</span>`
+            : nothing}</label>
           <input
             type="number"
             class="form-input"
-            min="2"
-            max="22"
+            min="1"
+            max=${String(this._deviceConfig.max_tx_power ?? 30)}
             .value=${String(this._editValues['tx_power'] ?? this._deviceConfig.tx_power ?? 17)}
             @input=${(e: Event) => {
               this._editValues['tx_power'] = Number((e.target as HTMLInputElement).value);
@@ -1399,7 +1401,7 @@ export class SettingsPage extends LitElement {
           this._showStatusMessage(`Saved: ${keysToApply.join(', ')}`, 'success');
         }
       } else {
-        this._showStatusMessage('Save failed', 'error');
+        this._showStatusMessage(result.error ? `Save failed: ${result.error}` : 'Save failed', 'error');
       }
     } catch (error) {
       this._showStatusMessage(`Error: ${String(error)}`, 'error');
@@ -1507,7 +1509,8 @@ export class SettingsPage extends LitElement {
       if (Object.keys(settings).length > 0) {
         const result = await setDeviceConfig(this.hass, settings, this.config?.entry_id);
         if (!result.success) {
-          this._showStatusMessage('Failed to save coordinates', 'error');
+          this._showStatusMessage(
+            result.error ? `Failed to save coordinates: ${result.error}` : 'Failed to save coordinates', 'error');
           return;
         }
         // Optimistically update local device config so fields reflect new values

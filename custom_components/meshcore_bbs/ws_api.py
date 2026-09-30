@@ -965,6 +965,8 @@ def ws_get_device_config(hass, connection, msg):
     config["spreading_factor"] = self_info.get("radio_sf")
     config["coding_rate"] = self_info.get("radio_cr")
     config["tx_power"] = self_info.get("tx_power")
+    # Firmware ceiling for this board (set_tx_power above it is rejected).
+    config["max_tx_power"] = self_info.get("max_tx_power")
 
     # Location from self_info
     config["latitude"] = self_info.get("adv_lat")

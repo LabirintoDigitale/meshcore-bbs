@@ -4,6 +4,13 @@ All notable changes to **MeshCore BBS for Home Assistant** are documented here. 
 
 ## [Unreleased]
 
+## [0.5.9] - 2026-09-30
+
+### Fixed
+
+- **Settings showed only "Save failed".** When the radio rejects a setting (TX power, radio parameters, coordinates…), the panel now shows the actual reason reported by the firmware/SDK, e.g. `Save failed: Failed to set tx_power: … (already applied: none)`.
+- **TX power limit.** The TX power field used a fixed 2–22 dBm range; it now uses the radio's own maximum (`max_tx_power`, shown next to the label).
+
 ## [0.5.8] - 2026-09-30
 
 ### Added

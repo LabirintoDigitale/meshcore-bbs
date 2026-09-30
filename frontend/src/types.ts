@@ -301,6 +301,8 @@ export interface DeviceConfig {
   pubkey: string;
   max_channels: number;
   tx_power?: number;
+  /** Highest TX power the radio firmware accepts (dBm). */
+  max_tx_power?: number;
   frequency?: number;
   bandwidth?: number;
   spreading_factor?: number;

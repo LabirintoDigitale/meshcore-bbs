@@ -187,6 +187,8 @@ export interface SetDeviceConfigResponse {
   success: boolean;
   changed: string[];
   rename?: SetDeviceConfigRenameResult;
+  /** Backend/firmware reason when success is false. */
+  error?: string;
 }
 
 /**
@@ -205,8 +207,10 @@ export async function setDeviceConfig(
     if (entryId) msg.entry_id = entryId;
     const result = await hass.callWS<SetDeviceConfigResponse>(msg);
     return result;
-  } catch {
-    return { success: false, changed: [] };
+  } catch (err) {
+    // Keep the reason (e.g. "Failed to set tx_power: ... (already
+    // applied: none)") so the panel can show why the radio refused.
+    return { success: false, changed: [], error: (err as { message?: string })?.message ?? String(err) };
   }
 }
 

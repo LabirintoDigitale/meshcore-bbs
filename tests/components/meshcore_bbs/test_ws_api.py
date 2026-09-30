@@ -706,6 +706,7 @@ async def test_ws_get_device_config_happy(
         "radio_sf": 11,
         "radio_cr": 5,
         "tx_power": 22,
+        "max_tx_power": 30,
         "adv_lat": 32.7,
         "adv_lon": -117.1,
     }
@@ -714,6 +715,7 @@ async def test_ws_get_device_config_happy(
     await _call_ws(ws_api.ws_get_device_config, hass, conn, {"id": 1})
     config = conn.results[0][1]
     assert config["frequency"] == 869
+    assert config["max_tx_power"] == 30
     assert config["connection_address"] == "h:5000"
 
 
