@@ -457,8 +457,9 @@ export class NodesPage extends LitElement {
             ${this._renderL1Button('all', 'All')}
             ${this._renderL1Button('added', '★ Added')}
             ${this._renderL1Button('discovered', 'Discovered')}
-            ${this._renderBbsButton('users', 'BBS', bbsState.snapshot?.users.length ?? 0)}
-            ${this._renderBbsButton('requests', 'Requests', bbsState.snapshot?.requests.length ?? 0)}
+            ${bbsState.active ? html`
+              ${this._renderBbsButton('users', 'BBS', bbsState.snapshot?.users.length ?? 0)}
+              ${this._renderBbsButton('requests', 'Requests', bbsState.snapshot?.requests.length ?? 0)}` : nothing}
           </div>
 
           <!-- Level 2 filters (hidden when L1 = All) -->
@@ -505,7 +506,7 @@ export class NodesPage extends LitElement {
 
         <!-- Content area -->
         <div class="content-area">
-          ${this._bbsView ? this._renderBbsContent() : this._renderContactsContent()}
+          ${this._bbsView && bbsState.active ? this._renderBbsContent() : this._renderContactsContent()}
         </div>
       </div>
 

@@ -675,6 +675,11 @@ export class MeshCorePanel extends LitElement {
       // Hop hash → node name for message routes (refreshes every few minutes).
       nodeDirectory.attach(this.hass, this._selectedEntryId ?? undefined);
     }
+    if (changedProperties.has('_selectedEntryId')) {
+      // BBS / Bot controls only show for the radio they run on.
+      bbsState.setActiveEntry(this._selectedEntryId);
+      if (this.hass) nodeDirectory.attach(this.hass, this._selectedEntryId ?? undefined);
+    }
     if (changedProperties.has('hass') && this.hass && !this._config && !this._loadingStarted) {
       // hass wasn't available in connectedCallback, try loading now
       this._loadData();

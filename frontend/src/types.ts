@@ -396,6 +396,8 @@ export interface BbsSettings {
   admin_prefix: string;
   admin_page: number;
   notify_service: string;
+  /** Upstream entry (radio) BBS and Bot run on; "" = first connected radio. */
+  radio_entry_id: string;
 }
 
 export interface BbsUser {
@@ -442,6 +444,10 @@ export interface BbsMenu {
 export interface BbsSnapshot {
   /** Integration version from manifest.json (backend). */
   version?: string;
+  /** Radio BBS and Bot actually run on (effective entry id). */
+  radio_entry_id?: string | null;
+  /** Connected companion radios. */
+  radios?: Array<{ entry_id: string; name: string }>;
   settings: BbsSettings;
   users: BbsUser[];
   requests: BbsRequest[];

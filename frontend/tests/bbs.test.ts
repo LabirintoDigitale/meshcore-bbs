@@ -13,7 +13,7 @@ function snapshot(overrides: Partial<BbsSnapshot> = {}): BbsSnapshot {
     settings: {
       enabled: true, name: 'BBS', main_menu: 1, max_len: 140, session_ttl: 600,
       posts_shown: 3, reply_denied: true, denied_every: 300, denied_text: 'auto', denied_info: true,
-      admin_prefix: '!', admin_page: 5, notify_service: '',
+      admin_prefix: '!', admin_page: 5, notify_service: '', radio_entry_id: '',
     },
     users: [
       { pubkey: 'aaaaaa000001', name: 'Alice', active: true, is_admin: true, created: 1 },
@@ -238,5 +238,58 @@ describe('meshcore-bbs-settings version line', () => {
   it('warns when the cached panel is older than the integration', async () => {
     const el = await mountWithVersion('99.0.0');
     expect(el.shadowRoot!.textContent).toContain('older than the installed integration');
+  });
+});
+
+describe('BBS with two radios', () => {
+  afterEach(() => {
+    document.body.innerHTML = '';
+    bbsState.setActiveEntry(null);
+    bbsState.setSnapshot(null);
+  });
+
+  const twoRadios = () => snapshot({
+    radio_entry_id: 'BASE',
+    radios: [{ entry_id: 'BASE', name: 'Base Galileo' }, { entry_id: 'PHONE', name: 'Galileo' }],
+  });
+
+  it('is active only for the BBS radio', () => {
+    bbsState.setSnapshot(twoRadios());
+    expect(bbsState.active).toBe(true); // no radio selected yet
+    bbsState.setActiveEntry('BASE');
+    expect(bbsState.active).toBe(true);
+    bbsState.setActiveEntry('PHONE');
+    expect(bbsState.active).toBe(false);
+    expect(bbsState.radioName).toBe('Base Galileo');
+  });
+
+  it('hides badges when the second radio is selected', async () => {
+    bbsState.setSnapshot(twoRadios());
+    bbsState.setActiveEntry('PHONE');
+    const el = await mount<HTMLElement>('meshcore-bbs-badge', { pubkey: 'aaaaaa000001' });
+    expect(el.shadowRoot!.querySelector('span')).toBeNull();
+  });
+
+  it('replaces the BBS settings with a note on the second radio', async () => {
+    const snap = twoRadios();
+    const callWS = vi.fn(async () => snap);
+    bbsState.setSnapshot(snap);
+    bbsState.setActiveEntry('PHONE');
+    const el = await mount<HTMLElement & { updateComplete: Promise<unknown> }>('meshcore-bbs-settings', {
+      hass: fakeHass(true, callWS),
+    });
+    await vi.waitFor(() => expect(el.shadowRoot!.textContent).toContain('BBS and Bot run on Base Galileo'));
+    expect(el.shadowRoot!.querySelector('textarea')).toBeNull();
+  });
+
+  it('offers the radio choice when two radios are connected', async () => {
+    const snap = twoRadios();
+    bbsState.setActiveEntry('BASE');
+    const el = await mount<HTMLElement & { updateComplete: Promise<unknown> }>('meshcore-bbs-settings', {
+      hass: fakeHass(true, vi.fn(async () => snap)),
+    });
+    await vi.waitFor(() => expect(el.shadowRoot!.textContent).toContain('Radio for BBS and Bot'));
+    const options = [...el.shadowRoot!.querySelectorAll('select option')].map((o) => o.textContent);
+    expect(options).toEqual(['Base Galileo', 'Galileo']);
   });
 });

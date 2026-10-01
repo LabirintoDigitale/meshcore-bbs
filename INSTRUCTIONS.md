@@ -151,6 +151,13 @@ The result view shows hops, total round-trip in ms, the per-hop path with SNR pe
 
 > **Note:** the trace dialog requires meshcore integration v2.6.0 or newer. On older versions the dialog reports a *"service not registered"* error.
 
+### More than one companion radio
+
+You can connect a second companion (e.g. one you normally use with your phone over Bluetooth) by adding another **MeshCore** integration entry for it. Pick the radio in the panel header menu (top right) to read and send its messages.
+
+- **BBS and Bot run on one radio only**: the first connected one, or the one chosen in **Settings → BBS → Radio for BBS and Bot**. They answer only messages received by that radio and reply through it. While another radio is selected, BBS and Bot controls are hidden.
+- **Bluetooth companions accept one connection at a time.** While Home Assistant is connected, the phone app can't connect; to use the phone, disable that MeshCore entry in Settings → Devices & services (⋮ → Disable) and re-enable it afterwards. The Home Assistant host needs its own Bluetooth adapter in range — Bluetooth proxies don't support MeshCore's PIN pairing.
+
 ### Channel bot
 
 **Settings → Bot** answers commands on channels automatically.

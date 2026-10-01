@@ -40,6 +40,8 @@ export class BbsState {
   private _unsub: (() => void) | null = null;
   private _connection: unknown = null;
   private _loading: Promise<void> | null = null;
+  /** Radio currently selected in the panel header. */
+  activeEntryId: string | null = null;
 
   /** Bind to a hass object; (re)subscribes when the WS connection changes. */
   attach(hass: HomeAssistant): void {
@@ -90,6 +92,29 @@ export class BbsState {
   subscribe(listener: () => void): () => void {
     this._listeners.add(listener);
     return () => this._listeners.delete(listener);
+  }
+
+  /** Follow the radio selected in the panel (BBS UI only shows for the BBS radio). */
+  setActiveEntry(entryId: string | null): void {
+    if (entryId === this.activeEntryId) return;
+    this.activeEntryId = entryId;
+    this._notify();
+  }
+
+  /**
+   * True when the selected radio is the one BBS and Bot run on (or when
+   * that can't be told yet). With a second companion selected, all BBS
+   * and Bot controls are hidden.
+   */
+  get active(): boolean {
+    const radio = this.snapshot?.radio_entry_id;
+    return !radio || !this.activeEntryId || this.activeEntryId === radio;
+  }
+
+  /** Name of the radio BBS and Bot run on. */
+  get radioName(): string {
+    const radio = this.snapshot?.radio_entry_id;
+    return this.snapshot?.radios?.find((r) => r.entry_id === radio)?.name ?? '';
   }
 
   get enabled(): boolean {

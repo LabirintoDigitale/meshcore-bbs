@@ -3,6 +3,7 @@ import { customElement, property, state } from 'lit/decorators.js';
 import type { Contact, ManagedDevice, HomeAssistant } from '../types';
 import { attachDialogA11y } from '../utils/dialog-a11y';
 import './bbs-badge';
+import { bbsState, BbsStateController } from '../bbs/bbs-state';
 import './bbs-actions';
 import './route-dialog';
 import './telemetry-dialog';
@@ -21,6 +22,8 @@ export class NodeDetailDialog extends LitElement {
   @property({ type: String }) entryId?: string;
   @state() private _routeOpen = false;
   @state() private _telemetryOpen = false;
+  // Re-render when the BBS radio / selected radio changes.
+  protected readonly bbsController = new BbsStateController(this);
 
   @state() private _confirming = false;
   @state() private _confirmAction: 'remove-contact' | null = null;
@@ -366,7 +369,7 @@ export class NodeDetailDialog extends LitElement {
                     </div>
                   </div>`}
 
-                  ${isContact && prefix ? html`
+                  ${isContact && prefix && bbsState.active ? html`
                     <div class="section">
                       <div class="section-header">BBS</div>
                       <meshcore-bbs-actions .hass=${this.hass} .pubkey=${prefix} .name=${name}></meshcore-bbs-actions>

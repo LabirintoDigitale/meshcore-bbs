@@ -37,6 +37,7 @@ from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
+from .radios import bbs_radio, handles_message, radios
 from .reply_format import route_reply
 from .const import (
     EVENT_BBS_REQUEST,
@@ -79,6 +80,9 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "admin_prefix": "!",
     "admin_page": 5,
     "notify_service": "",
+    # Upstream meshcore entry (companion radio) BBS and Bot run on;
+    # "" = the first connected radio.
+    "radio_entry_id": "",
 }
 
 # Bounds for the numeric settings: (min, max).
@@ -473,6 +477,9 @@ class Bbs:
                 {"id": int(mid), **m}
                 for mid, m in sorted(self.data["menus"].items(), key=lambda kv: int(kv[0]))
             ],
+            # Radio BBS/Bot run on (effective) and the connected radios.
+            "radio_entry_id": self.radio_entry_id(),
+            "radios": [{"entry_id": r["entry_id"], "name": r["name"]} for r in radios(self.hass)],
         }
 
     # ── users / requests (shared by panel and mesh admin commands) ──
@@ -1022,9 +1029,22 @@ class Bbs:
             "rssi": rssi,
         })
 
+    def radio_entry_id(self) -> str | None:
+        """Entry id of the radio BBS and Bot run on."""
+        return bbs_radio(self.hass, self.settings.get("radio_entry_id") or None)
+
     def _own_prefixes(self) -> list[str]:
+        """Key prefix of the BBS radio itself (never answer ourselves).
+
+        Other radios connected to Home Assistant are ordinary senders: a DM
+        from a second companion to the BBS radio gets the BBS as usual.
+        """
+        coords = self.hass.data.get(MESHCORE_DOMAIN) or {}
+        radio = self.radio_entry_id()
         prefixes = []
-        for coord in (self.hass.data.get(MESHCORE_DOMAIN) or {}).values():
+        for entry_id, coord in coords.items():
+            if radio is not None and entry_id != radio:
+                continue
             pub = getattr(coord, "pubkey", None)
             if isinstance(pub, str) and pub:
                 prefixes.append(clean_pubkey(pub)[:12])
@@ -1072,6 +1092,10 @@ class Bbs:
         pk = clean_pubkey(data.get("pubkey_prefix") or data.get("public_key") or "")
         if not pk or any(prefixes_match(pk, own) for own in self._own_prefixes()):
             return
+        # Only messages received by the BBS radio; reply through it.
+        handle, radio = handles_message(self.hass, self.settings.get("radio_entry_id") or None, data)
+        if not handle:
+            return
         if self._sender_type(pk) in NON_CHAT_CONTACT_TYPES:
             return
         text = str(data.get("text") or data.get("message") or "")
@@ -1089,7 +1113,7 @@ class Bbs:
             await self._async_notify(name or pk, text)
         if replies:
             task = self.hass.async_create_task(
-                self._async_send(pk, replies, data.get("entry_id"))
+                self._async_send(pk, replies, data.get("entry_id") or radio)
             )
             self._tasks.add(task)
             task.add_done_callback(self._tasks.discard)

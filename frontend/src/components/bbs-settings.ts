@@ -87,6 +87,8 @@ export class BbsSettingsCard extends LitElement {
     }
     label { display: block; font-size: 12px; font-weight: 600; color: var(--secondary-text-color); margin-bottom: 4px; }
     .hint { font-size: 11px; color: var(--secondary-text-color); margin-top: 2px; }
+    select { padding: 8px 10px; border: 1px solid var(--divider-color, #e0e0e0); border-radius: 8px;
+      background: var(--primary-background-color, #fafafa); color: var(--primary-text-color); font-size: 14px; }
     input[type='text'], input[type='number'], textarea {
       width: 100%;
       box-sizing: border-box;
@@ -147,6 +149,12 @@ export class BbsSettingsCard extends LitElement {
       return html`<div class="card"><div class="card-title">BBS</div>
         <div class="sub">${bbsState.error ? `BBS unavailable: ${bbsState.error}` : 'Loading…'}</div>
         ${this._renderVersion()}</div>`;
+    }
+    if (!bbsState.active) {
+      return html`<div class="card"><div class="card-title">BBS &amp; Bot</div>
+        <div class="sub">BBS and Bot run on <b>${bbsState.radioName || 'another radio'}</b>.
+          This radio only shows and sends messages — select ${bbsState.radioName || 'that radio'}
+          in the top-right menu to configure BBS and Bot.</div></div>`;
     }
     if (!this._isAdmin) {
       return html`<div class="card"><div class="card-title">BBS
@@ -219,6 +227,17 @@ export class BbsSettingsCard extends LitElement {
           <span><b>${snap.posts.length}</b> posts</span>
         </div>
 
+        ${(snap.radios?.length ?? 0) > 1 ? html`
+          <div style="margin-top: 16px;">
+            <label>Radio for BBS and Bot</label>
+            <select .value=${this._value('radio_entry_id') || snap.radio_entry_id || ''}
+              @change=${(e: Event) => this._set('radio_entry_id', (e.target as HTMLSelectElement).value)}>
+              ${snap.radios!.map((r) => html`<option value=${r.entry_id}
+                ?selected=${(this._value('radio_entry_id') || snap.radio_entry_id) === r.entry_id}>${r.name}</option>`)}
+            </select>
+            <div class="hint">BBS and Bot answer only messages received by this radio, and reply through it.
+              The other radios just show and send messages.</div>
+          </div>` : nothing}
         <div class="grid" style="margin-top: 16px;">
           <div>
             <label>BBS name</label>

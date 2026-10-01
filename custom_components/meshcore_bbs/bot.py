@@ -24,6 +24,7 @@ from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.helpers.storage import Store
 
 from .const import DOMAIN, MESHCORE_DOMAIN, STORAGE_VERSION
+from .radios import handles_message
 from .reply_format import route_reply
 from .utils import enrich_rx_log_entries
 
@@ -109,10 +110,6 @@ class ChannelBot:
 
     # ── message handling ──
 
-    def _single_entry_id(self) -> str | None:
-        coords = self.hass.data.get(MESHCORE_DOMAIN) or {}
-        return next(iter(coords)) if len(coords) == 1 else None
-
     async def async_handle_event(self, event: Event) -> None:
         """``meshcore_message`` listener."""
         if not self.config.get("enabled"):
@@ -125,6 +122,12 @@ class ChannelBot:
             return
         channel = self.config["channels"].get(str(channel_idx))
         if not channel:
+            return
+        # Same radio as the BBS: only its messages, replies through it.
+        bbs = self.hass.data.get(DOMAIN, {}).get("bbs")
+        configured = bbs.settings.get("radio_entry_id") if bbs is not None else None
+        handle, entry_id = handles_message(self.hass, configured or None, data)
+        if not handle:
             return
         text = str(data.get("message") or data.get("text") or "")
         rule = next((r for r in channel.get("rules", []) if rule_matches(r, text)), None)
@@ -143,7 +146,8 @@ class ChannelBot:
         if not reply:
             return
         payload: dict[str, Any] = {"channel_idx": channel_idx, "message": reply}
-        entry_id = self._single_entry_id()
+        if entry_id:
+            payload["entry_id"] = entry_id
         scopes = self.hass.data.get(DOMAIN, {}).get("channel_scopes")
         if entry_id and scopes is not None:
             scope = scopes.get(entry_id, channel_idx)

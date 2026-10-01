@@ -16,6 +16,7 @@ import '../components/message-bubble';
 import '../components/message-search';
 import '../components/bbs-badge';
 import '../components/bbs-actions';
+import { bbsState, BbsStateController } from '../bbs/bbs-state';
 import '../components/node-detail-dialog';
 
 @customElement('meshcore-bbs-page')
@@ -65,6 +66,8 @@ export class ChatPage extends LitElement {
   @state() private _manageInitialTab: 'contacts' | 'channels' = 'contacts';
   @state() private _searchOpen = false;
   @state() private _bbsPopupOpen = false;
+  // Re-render when the BBS radio / selected radio changes.
+  protected readonly bbsController = new BbsStateController(this);
   // Contact whose details dialog is open (avatar click in the list).
   @state() private _detailContact: Contact | null = null;
   @state() private _currentEntityId: string | null = null;
@@ -1292,11 +1295,11 @@ export class ChatPage extends LitElement {
 
   private _renderBbsBadge() {
     const prefix = this._selectedContactPrefix();
-    return prefix ? html`<meshcore-bbs-badge .pubkey=${prefix}></meshcore-bbs-badge>` : '';
+    return prefix && bbsState.active ? html`<meshcore-bbs-badge .pubkey=${prefix}></meshcore-bbs-badge>` : '';
   }
 
   private _renderBbsHeaderButton() {
-    if (!this._selectedContactPrefix()) return '';
+    if (!this._selectedContactPrefix() || !bbsState.active) return '';
     return html`<button class="header-action-btn" title="BBS access" aria-label="BBS access"
       @click=${() => { this._bbsPopupOpen = true; }}><svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M4 4h16v2H4zm0 4h10v2H4zm0 4h16v2H4zm0 4h10v2H4zm13-1 3 3-3 3v-2h-3v-2h3z"/></svg></button>`;
   }

@@ -9,6 +9,7 @@ import {
   type BotRule,
 } from '../api';
 import type { Channel, HomeAssistant } from '../types';
+import { bbsState, BbsStateController } from '../bbs/bbs-state';
 
 const MATCH_LABELS: Record<BotMatch, string> = {
   exact: 'Message is',
@@ -37,6 +38,8 @@ export class BotSettings extends LitElement {
   @state() private _saving = false;
   @state() private _msg = '';
   @state() private _err = '';
+  // Hidden when another radio than the BBS/Bot one is selected.
+  protected readonly bbsController = new BbsStateController(this);
 
   static styles = css`
     :host { display: block; }
@@ -142,6 +145,7 @@ export class BotSettings extends LitElement {
   }
 
   render() {
+    if (!bbsState.active) return nothing;
     const cfg = this._config;
     if (!cfg) {
       return html`<div class="card"><div class="card-title">Bot</div>

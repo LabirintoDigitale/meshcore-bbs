@@ -39,6 +39,7 @@ export class BbsBadge extends LitElement {
   `;
 
   render() {
+    if (!bbsState.active) return nothing;
     const status = bbsState.statusFor(this.pubkey);
     const label = bbsStatusLabel(status);
     if (!label) return nothing;

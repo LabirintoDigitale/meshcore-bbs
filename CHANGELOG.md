@@ -4,6 +4,16 @@ All notable changes to **MeshCore BBS for Home Assistant** are documented here. 
 
 ## [Unreleased]
 
+## [0.7.2] - 2026-10-01
+
+### Added
+
+- **Several companion radios.** With more than one meshcore entry connected (e.g. a second, Bluetooth companion), BBS and Bot run on a single radio — the first one by default, selectable in **Settings → BBS → Radio for BBS and Bot**. They only answer messages received by that radio and reply through it (the receiving radio is read from the message's entity id). Other radios just show and send messages from the header selector: while one of them is selected, all BBS and Bot controls (icons, contact BBS section, BBS/Requests filters, Settings cards) are hidden.
+
+### Fixed
+
+- The BBS no longer ignores direct messages coming from another radio connected to the same Home Assistant; only the BBS radio itself is excluded.
+
 ## [0.7.1] - 2026-10-01
 
 ### Added
