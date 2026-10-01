@@ -43,6 +43,7 @@ from .const import (
 )
 from .bbs import Bbs
 from .bbs_ws import async_register_bbs_commands
+from .bot import ChannelBot, async_register_bot_commands
 from .channel_scopes import ChannelScopeStore
 from .late_echo import LateEchoTracker
 from .message_store import MessageStore
@@ -231,6 +232,12 @@ async def async_setup_entry(
         bbs.version = str((await async_get_integration(hass, DOMAIN)).version or "")
         bucket["bbs"] = bbs
 
+    # Channel bot (per-channel command → automatic reply); off by default.
+    if "bot" not in bucket:
+        bot = ChannelBot(hass)
+        await bot.async_load()
+        bucket["bot"] = bot
+
     # Register WS commands once (idempotent registration would be ideal but
     # HA's websocket_api raises on duplicate types — guard with a flag on the
     # domain bucket so multiple config entries don't collide).
@@ -239,6 +246,7 @@ async def async_setup_entry(
         async_register_bbs_commands(hass)
         async_register_route_commands(hass)
         async_register_telemetry_commands(hass)
+        async_register_bot_commands(hass)
         bucket["_ws_registered"] = True
 
     # One-shot detection of the upstream meshcore service surface this
@@ -269,6 +277,10 @@ async def async_setup_entry(
     entry.async_on_unload(hass.bus.async_listen(
         f"{MESHCORE_DOMAIN}_raw_event",
         bucket["bbs"].async_handle_raw_event,
+    ))
+    entry.async_on_unload(hass.bus.async_listen(
+        EVENT_MESHCORE_MESSAGE,
+        bucket["bot"].async_handle_event,
     ))
     entry.async_on_unload(hass.bus.async_listen(
         EVENT_MESHCORE_DELIVERY_UPDATE,
@@ -353,6 +365,9 @@ async def async_unload_entry(
         bbs = bucket.pop("bbs", None)
         if bbs is not None:
             await bbs.async_shutdown()
+        bot = bucket.pop("bot", None)
+        if bot is not None:
+            await bot.async_flush()
         late = bucket.pop("late_echo", None)
         if late is not None:
             late.stop()

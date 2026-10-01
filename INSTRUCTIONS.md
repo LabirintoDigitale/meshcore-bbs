@@ -151,6 +151,16 @@ The result view shows hops, total round-trip in ms, the per-hop path with SNR pe
 
 > **Note:** the trace dialog requires meshcore integration v2.6.0 or newer. On older versions the dialog reports a *"service not registered"* error.
 
+### Channel bot
+
+**Settings → Bot** answers commands on channels automatically.
+
+1. Switch the bot **ON**.
+2. Click a channel, then **+ Add command**: type the command (e.g. `test`), choose how it matches (*Message is* / *Starts with* / *Contains*, case-insensitive) and the action (**Reply with route**). Add as many commands per channel as you like.
+3. **Save bot**.
+
+When someone sends a matching message on that channel, the bot replies on the same channel with the route the message took: `@[sender] | path (N hops) | SNR | RSSI | Received at`. It never answers its own messages and answers each sender at most once per *cooldown* (default 30 s), so two bots can't ping-pong. Replies use the region scope configured for the channel.
+
 ### Requesting a contact's telemetry
 
 Open the contact (Nodes tab, or its round avatar in the chat list) → **Telemetry**. The panel asks the contact for its telemetry over the mesh (like the companion app) and shows the values it returns, plus a map with its position — the GPS fix from the telemetry when there is one, otherwise the position it advertises. The contact must allow you to read its telemetry; if it doesn't answer within ~30 s you get a "No telemetry received" message. The map is loaded from openstreetmap.org, so it needs an internet connection. Admin only.

@@ -4,6 +4,12 @@ All notable changes to **MeshCore BBS for Home Assistant** are documented here. 
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-10-01
+
+### Added
+
+- **Channel bot (Settings → Bot).** Per-channel commands that trigger an automatic reply on that channel. Pick a channel from the list of the radio's channels, add commands (e.g. `path` on #path, `test` on #test) with a match type — *message is*, *starts with* or *contains*, case-insensitive — and an action. The first action, **Reply with route**, answers with the same line as the panel's Reply: `@[sender] | 9a92,86a8,146c (3 hops) | SNR: -9.25 dB | RSSI: -122 dBm | Received at: 14:56:15`. The bot is off by default, never answers its own messages, replies at most once per sender per cooldown (default 30 s), and uses the channel's region scope. Stored in `.storage/meshcore_bbs.bot`; changes are admin-only.
+
 ## [0.6.5] - 2026-09-30
 
 ### Fixed

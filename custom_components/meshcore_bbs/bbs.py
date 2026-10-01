@@ -37,6 +37,7 @@ from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
+from .reply_format import route_reply
 from .const import (
     EVENT_BBS_REQUEST,
     EVENT_BBS_UPDATED,
@@ -1008,28 +1009,18 @@ class Bbs:
         meta = meta or {}
         pk = clean_pubkey(meta.get("pubkey_prefix") or meta.get("public_key") or "")
         route = self._dm_route(pk) if pk else None
-        parts = [f"@[{user.get('name', '')}]"]
         snr, rssi = meta.get("snr"), meta.get("rssi")
+        nodes: list[str] = []
         if route is not None:
             nodes, r_snr, r_rssi = route
             snr = snr if snr is not None else r_snr
             rssi = rssi if rssi is not None else r_rssi
-        else:
-            nodes = []
-        hc = meta.get("hop_count", meta.get("path_len"))
-        if nodes:
-            n = len(nodes)
-            parts.append(f"{','.join(h[:4] for h in nodes)} ({n} hop{'s' if n != 1 else ''})")
-        elif isinstance(hc, int) and 0 < hc < 64:
-            parts.append(f"{hc} hop{'s' if hc != 1 else ''}")
-        else:
-            parts.append("direct (0 hops)")
-        if isinstance(snr, (int, float)) and not isinstance(snr, bool):
-            parts.append(f"SNR: {snr:g} dB")
-        if isinstance(rssi, (int, float)) and not isinstance(rssi, bool):
-            parts.append(f"RSSI: {rssi:g} dBm")
-        parts.append("Received at: " + dt_util.now().strftime("%H:%M:%S"))
-        return " | ".join(parts)
+        return route_reply(user.get("name", ""), {
+            "path_nodes": nodes,
+            "hop_count": meta.get("hop_count", meta.get("path_len")),
+            "snr": snr,
+            "rssi": rssi,
+        })
 
     def _own_prefixes(self) -> list[str]:
         prefixes = []

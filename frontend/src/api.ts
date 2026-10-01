@@ -1081,3 +1081,30 @@ export function requestTelemetry(
   if (entryId) msg.entry_id = entryId;
   return hass.callWS<TelemetryResult>(msg);
 }
+
+// ─── Channel bot ─────────────────────────────────────────────────────────
+
+export type BotMatch = 'exact' | 'starts_with' | 'contains';
+export type BotAction = 'route_reply';
+
+export interface BotRule {
+  trigger: string;
+  match: BotMatch;
+  action: BotAction;
+  enabled: boolean;
+}
+
+export interface BotConfig {
+  enabled: boolean;
+  cooldown: number;
+  channels: Record<string, { name: string; rules: BotRule[] }>;
+}
+
+export function getBotConfig(hass: HomeAssistant): Promise<BotConfig> {
+  return hass.callWS<BotConfig>({ type: 'meshcore_bbs/bot_get' });
+}
+
+/** Replace the bot configuration (admin-only). */
+export function setBotConfig(hass: HomeAssistant, config: BotConfig): Promise<BotConfig> {
+  return hass.callWS<BotConfig>({ type: 'meshcore_bbs/bot_set', config });
+}
