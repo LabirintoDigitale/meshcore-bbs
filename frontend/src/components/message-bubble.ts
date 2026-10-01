@@ -396,6 +396,9 @@ export class MessageBubble extends LitElement {
       case 'waiting':
         return 'Waiting...';
       case 'sent':
+        // DMs are confirmed by the recipient's ACK; "Unheard" (no repeater
+        // echo) only makes sense for channel messages.
+        if (deliveryStatus.direct) return deliveryStatus.ackReceived ? 'Delivered' : 'No ACK';
         return repeats > 0 ? 'Repeated' : 'Unheard';
       case 'delivered':
         return 'Delivered';
@@ -509,9 +512,13 @@ export class MessageBubble extends LitElement {
           ${msg.isOutgoing && msg.deliveryStatus
             ? html`
                 <div style=${footerStyle}>
-                  ${(msg.deliveryStatus.repeaterCount ?? 0) > 0
+                  ${msg.deliveryStatus.direct
+                    ? (msg.deliveryStatus.ackReceived || msg.deliveryStatus.status === 'delivered'
+                      ? 'ACK received — delivered'
+                      : 'No ACK received — the recipient did not confirm (off, out of range or wrong route)')
+                    : (msg.deliveryStatus.repeaterCount ?? 0) > 0
                     ? `${msg.deliveryStatus.repeaterCount} repeater${msg.deliveryStatus.repeaterCount === 1 ? '' : 's'} responded`
-                    : 'No repeaters responded'}${msg.deliveryStatus.ackReceived ? ' · ACK received' : ''}${msg.deliveryStatus.roundTripMs ? ` · ${msg.deliveryStatus.roundTripMs}ms RTT` : ''}
+                    : 'No repeaters responded'}${!msg.deliveryStatus.direct && msg.deliveryStatus.ackReceived ? ' · ACK received' : ''}${msg.deliveryStatus.roundTripMs ? ` · ${msg.deliveryStatus.roundTripMs}ms RTT` : ''}
                 </div>
               `
             : html``}

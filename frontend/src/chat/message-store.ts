@@ -679,6 +679,7 @@ export class MessageStore {
           deliveryStatus = {
             status: ackReceived === true ? 'delivered' : 'sent',
             ackReceived: ackReceived ?? undefined,
+            direct: true,
           };
         } else {
           const count = repeaterCount ?? (rxLogData?.length ?? 0);

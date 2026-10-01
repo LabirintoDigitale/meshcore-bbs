@@ -159,6 +159,7 @@ export function toClientMessage(stored: StoredMessage): ChatMessage {
           ackReceived: stored.ack_received,
           repeaterCount: stored.repeater_count,
           roundTripMs: stored.round_trip_ms,
+          direct: stored.message_type === 'direct',
         }
       : undefined,
     repeaterCount: stored.repeater_count,

@@ -99,3 +99,28 @@ describe('message-bubble hops and reply', () => {
     expect(mention).toBe('@[Alfa 10] | Received at: 14:54:53 ');
   });
 });
+
+describe('delivery label: direct messages vs channels', () => {
+  async function statusOf(deliveryStatus: Record<string, unknown>): Promise<string> {
+    const msg = {
+      id: 'o1', sender: 'Me', text: 'Prova', timestamp: new Date(), isOutgoing: true, isSystem: false,
+      raw: 'Prova', mentions: [], deliveryStatus,
+    } as unknown as ChatMessage;
+    const bubble = await mountBubble({ sender: 'Me', isOutgoing: true, isSystem: false, messages: [msg],
+      startTime: msg.timestamp, endTime: msg.timestamp });
+    return bubble.shadowRoot!.querySelector('.delivery-status')!.textContent!.trim();
+  }
+
+  it('DM without ACK reads "No ACK", not "Unheard"', async () => {
+    expect(await statusOf({ status: 'sent', direct: true })).toBe('No ACK');
+  });
+
+  it('DM with ACK reads "Delivered"', async () => {
+    expect(await statusOf({ status: 'delivered', direct: true, ackReceived: true })).toBe('Delivered');
+  });
+
+  it('channel messages keep Unheard / Repeated', async () => {
+    expect(await statusOf({ status: 'sent', repeaterCount: 0 })).toBe('Unheard');
+    expect(await statusOf({ status: 'sent', repeaterCount: 2 })).toBe('Repeated');
+  });
+});

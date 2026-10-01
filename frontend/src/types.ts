@@ -108,6 +108,11 @@ export interface DeliveryStatus {
   repeaterCount?: number;
   ackReceived?: boolean;
   roundTripMs?: number;
+  /**
+   * Direct message: delivery is confirmed by the recipient's ACK, not by
+   * hearing repeaters re-broadcast it (that only applies to channels).
+   */
+  direct?: boolean;
 }
 
 /**

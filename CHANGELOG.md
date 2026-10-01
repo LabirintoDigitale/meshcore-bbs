@@ -4,6 +4,12 @@ All notable changes to **MeshCore BBS for Home Assistant** are documented here. 
 
 ## [Unreleased]
 
+## [0.7.3] - 2026-10-01
+
+### Fixed
+
+- **Direct messages showed "Unheard".** "Unheard / Repeated" is about hearing repeaters re-broadcast a *channel* message. Sent direct messages are confirmed by the recipient's ACK instead, so they now read **Delivered** (ACK received) or **No ACK**, and the message popup says whether the recipient confirmed it.
+
 ## [0.7.2] - 2026-10-01
 
 ### Added
