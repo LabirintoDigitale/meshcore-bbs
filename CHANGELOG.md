@@ -4,6 +4,12 @@ All notable changes to **MeshCore BBS for Home Assistant** are documented here. 
 
 ## [Unreleased]
 
+## [0.7.6] - 2026-10-01
+
+### Added
+
+- **Disconnect / reconnect a Bluetooth radio from the header.** For a Bluetooth radio the green *Connected* chip is clickable: confirm and Home Assistant releases the BLE link (the MeshCore entry is disabled, same as Settings → Devices & services → ⋮ → Disable), so the radio is free for e.g. the phone app. A disconnected radio shows a grey "*name* · off" chip — click it to reconnect. A red *Disconnected* chip offers to reload the entry and retry the connection. USB/TCP radios are unchanged.
+
 ## [0.7.5] - 2026-10-01
 
 ### Added

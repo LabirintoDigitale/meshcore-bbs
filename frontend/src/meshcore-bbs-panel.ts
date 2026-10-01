@@ -4,7 +4,7 @@ import type { HomeAssistant, PanelConfig, Contact, Channel, MeshCoreDevice } fro
 import type { TraceResult } from './api';
 import { panelStyles } from './styles';
 import { MESHCORE_PRESET, DEFAULT_PANEL_CONFIG } from './constants';
-import { getDevices, getContacts, getChannels, getUnreadAndLastRead, markConversationRead, removeContact, addContact, traceContact, type TracePathMode } from './api';
+import { getDevices, getRadioEntries, type RadioEntry, getContacts, getChannels, getUnreadAndLastRead, markConversationRead, removeContact, addContact, traceContact, type TracePathMode } from './api';
 import { UnreadController } from './chat/unread-controller';
 import './pages/chat-page';
 import './pages/devices-page';
@@ -12,6 +12,7 @@ import './pages/nodes-page';
 import './pages/settings-page';
 import './components/trace-dialog';
 import './components/target-picker';
+import './components/radio-connection';
 import { bbsState } from './bbs/bbs-state';
 import { nodeDirectory } from './chat/node-directory';
 
@@ -25,6 +26,9 @@ export class MeshCorePanel extends LitElement {
   @state() private _activeTab: 'chat' | 'devices' | 'nodes' | 'settings' = 'chat';
   // managedDevices removed — devices-page.ts fetches its own data
   @state() private _devices: MeshCoreDevice[] = [];
+  /** All MeshCore radios incl. disabled ones (for the connect/disconnect chips). */
+  @state() private _radios: RadioEntry[] = [];
+  private _radioRetryTimers: number[] = [];
   @state() private _contacts: Contact[] = [];
   @state() private _channels: Channel[] = [];
   @state() private _selectedEntryId: string | null = null;
@@ -550,6 +554,8 @@ export class MeshCorePanel extends LitElement {
 
   disconnectedCallback() {
     super.disconnectedCallback();
+    this._radioRetryTimers.forEach((t) => clearTimeout(t));
+    this._radioRetryTimers = [];
     this._teardownSubscriptions();
     bbsState.detach();
     this._closeDeviceDropdown();
@@ -715,6 +721,12 @@ export class MeshCorePanel extends LitElement {
           <div class="center-message">
             <div>
               <p>${this._error}</p>
+              ${this._radios.some((r) => r.disabled)
+                ? html`<div style="display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 12px;">
+                    <meshcore-radio-connection .hass=${this.hass} .radios=${this._radios}
+                      @radios-changed=${this._onRadiosChanged}></meshcore-radio-connection>
+                  </div>`
+                : ''}
               <p style="font-size: 12px; margin-top: 8px;">
                 ${isNoDevices
                   ? html`Open <a href="/config/repairs">Settings &rarr; System &rarr; Repairs</a>
@@ -742,13 +754,13 @@ export class MeshCorePanel extends LitElement {
             <div class="panel-title">MeshCore BBS</div>
           </div>
           <div class="header-right">
-            ${device && this._getNodeStatus(device) !== null
-              ? html`
-                  <span class="connection-status ${this._getNodeStatus(device) === 'online' ? 'online' : 'offline'}">
-                    <span class="status-dot ${this._getNodeStatus(device) === 'online' ? 'online' : 'offline'}"></span>
-                    ${this._getNodeStatus(device) === 'online' ? 'Connected' : 'Disconnected'}
-                  </span>`
-              : html``}
+            <meshcore-radio-connection
+              .hass=${this.hass}
+              .device=${device}
+              .status=${device ? this._getNodeStatus(device) : null}
+              .radios=${this._radios}
+              @radios-changed=${this._onRadiosChanged}>
+            </meshcore-radio-connection>
             ${device && this._getBatteryLevel(device) !== null
               ? html`
                   <span class="battery-indicator">
@@ -952,8 +964,9 @@ export class MeshCorePanel extends LitElement {
     this._error = null;
 
     try {
-      const devices = await getDevices(this.hass);
+      const [devices, radios] = await Promise.all([getDevices(this.hass), getRadioEntries(this.hass)]);
       this._devices = devices;
+      this._radios = radios;
 
       if (devices.length === 0) {
         this._error = 'No MeshCore devices found';
@@ -984,6 +997,40 @@ export class MeshCorePanel extends LitElement {
       console.error('MeshCore panel load error:', err);
     } finally {
       this._loading = false;
+    }
+  }
+
+  /** A radio was disconnected / reconnected from the header chip. */
+  private _onRadiosChanged = (e: Event) => {
+    const action = (e as CustomEvent).detail?.action;
+    this._radioRetryTimers.forEach((t) => clearTimeout(t));
+    this._radioRetryTimers = [];
+    void this._refreshDevices();
+    // A Bluetooth radio takes a few seconds to come back after reconnecting.
+    if (action !== 'disconnect') {
+      this._radioRetryTimers = [4000, 10000, 20000, 40000].map((ms) =>
+        window.setTimeout(() => void this._refreshDevices(), ms));
+    }
+  };
+
+  private async _refreshDevices() {
+    if (!this.hass) return;
+    const [devices, radios] = await Promise.all([getDevices(this.hass), getRadioEntries(this.hass)]);
+    this._radios = radios;
+    if (devices.length === 0) {
+      this._devices = [];
+      this._config = null;
+      this._error = 'No MeshCore devices found';
+      return;
+    }
+    if (!this._config) {
+      this._loadingStarted = false;
+      await this._loadData();
+      return;
+    }
+    this._devices = devices;
+    if (!devices.some((d) => d.entry_id === this._selectedEntryId)) {
+      this._selectDevice((devices.find((d) => d.connected) || devices[0]).entry_id);
     }
   }
 

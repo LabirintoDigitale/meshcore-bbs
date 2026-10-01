@@ -1108,3 +1108,32 @@ export function getBotConfig(hass: HomeAssistant): Promise<BotConfig> {
 export function setBotConfig(hass: HomeAssistant, config: BotConfig): Promise<BotConfig> {
   return hass.callWS<BotConfig>({ type: 'meshcore_bbs/bot_set', config });
 }
+
+// ─── Radio connection (disable / enable the upstream entry) ───────────────
+
+export interface RadioEntry {
+  entry_id: string;
+  title: string;
+  connection_type: string; // 'ble' | 'usb' | 'tcp' | 'unknown'
+  disabled: boolean;
+}
+
+/** All MeshCore radios, including disabled (disconnected) ones. */
+export async function getRadioEntries(hass: HomeAssistant): Promise<RadioEntry[]> {
+  try {
+    const result = await hass.callWS<{ radios: RadioEntry[] }>({ type: 'meshcore_bbs/radio_entries' });
+    return result.radios || [];
+  } catch {
+    return [];
+  }
+}
+
+/** Disconnect (disable) or reconnect (enable) a radio's MeshCore entry. */
+export function setRadioEnabled(hass: HomeAssistant, entryId: string, enabled: boolean): Promise<RadioEntry> {
+  return hass.callWS<RadioEntry>({ type: 'meshcore_bbs/set_radio_enabled', entry_id: entryId, enabled });
+}
+
+/** Reload an enabled radio whose link dropped. */
+export function reloadRadio(hass: HomeAssistant, entryId: string): Promise<{ reloaded: boolean }> {
+  return hass.callWS<{ reloaded: boolean }>({ type: 'meshcore_bbs/reload_radio', entry_id: entryId });
+}
