@@ -572,7 +572,13 @@ export class CommandDialog extends LitElement {
         }
         const args = this._paramValues;
         let commandStr = this._selectedCommand.name;
-        if (Object.keys(args).length > 0) {
+        if (this._selectedCommand.raw) {
+          commandStr = String(args.command ?? '').trim();
+          if (!commandStr) {
+            this._error = 'Enter a command';
+            return;
+          }
+        } else if (Object.keys(args).length > 0) {
           const argStr = Object.entries(args)
             .map(([, v]) => String(v))
             .join(' ');

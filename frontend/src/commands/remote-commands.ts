@@ -10,6 +10,26 @@ import { CommandDef } from '../types';
  */
 export const REMOTE_COMMANDS: CommandDef[] = [
   // ========================
+  // Custom
+  // ========================
+  {
+    name: 'custom',
+    description: 'Send any CLI command typed by hand',
+    category: 'Custom',
+    raw: true,
+    params: [
+      {
+        name: 'command',
+        type: 'string',
+        description: 'Full command, e.g. "get bootloader.ver" or "set bluetooth.enabled false"',
+        required: true,
+      },
+    ],
+    responseFormat: 'Whatever the firmware replies',
+    remoteOnly: true,
+  },
+
+  // ========================
   // Device Management
   // ========================
   {

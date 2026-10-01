@@ -4,6 +4,12 @@ All notable changes to **MeshCore BBS for Home Assistant** are documented here. 
 
 ## [Unreleased]
 
+## [0.7.5] - 2026-10-01
+
+### Added
+
+- **Custom command for managed devices.** *Issue Command* has a new **custom** entry at the top of the list: type any firmware CLI command (e.g. `set bluetooth.enabled false`) and it is sent verbatim to the repeater/client, with the device's reply shown in the dialog.
+
 ## [0.7.4] - 2026-10-01
 
 ### Fixed

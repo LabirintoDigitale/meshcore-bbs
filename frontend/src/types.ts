@@ -360,6 +360,8 @@ export interface CommandDef {
   dangerMessage?: string;
   localOnly?: boolean;
   remoteOnly?: boolean;
+  /** Free-form command: the single `command` param is sent verbatim. */
+  raw?: boolean;
 }
 
 /**
