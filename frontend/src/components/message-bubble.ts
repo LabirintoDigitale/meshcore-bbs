@@ -3,6 +3,7 @@ import { customElement, property, state } from 'lit/decorators.js';
 import type { ChatMessage, MessageGroup, DeliveryStatus } from '../types';
 import { formatTimestamp } from '../chat/message-parser';
 import { attachDialogA11y } from '../utils/dialog-a11y';
+import { nodeDirectory, NodeDirectoryController } from '../chat/node-directory';
 
 /**
  * Generate a deterministic color from a string (e.g., pubkey prefix).
@@ -23,6 +24,8 @@ export class MessageBubble extends LitElement {
   @property({ type: String }) timestampFormat: 'relative' | 'time' | 'datetime' = 'relative';
 
   @state() private _selectedMessage: ChatMessage | null = null;
+  // Re-renders when the node directory (hop hash → name) reloads.
+  protected readonly nodeDirectoryController = new NodeDirectoryController(this);
 
   constructor() {
     super();
@@ -274,6 +277,36 @@ export class MessageBubble extends LitElement {
       transition: background 0.15s;
     }
 
+    .route-entry + .route-entry {
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px dashed var(--divider-color, #e0e0e0);
+    }
+
+    .route-hops {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 4px 6px;
+      font-family: inherit;
+      color: var(--primary-text-color);
+    }
+
+    .route-hop code {
+      font-size: 11px;
+      color: var(--secondary-text-color);
+      margin-right: 3px;
+    }
+
+    .route-more,
+    .route-sep {
+      color: var(--secondary-text-color);
+    }
+
+    .route-meta {
+      margin-top: 4px;
+    }
+
     .message-dialog-route:hover,
     .message-dialog-route:active {
       background: rgba(var(--rgb-primary-color, 3, 169, 244), 0.15);
@@ -404,6 +437,33 @@ export class MessageBubble extends LitElement {
     return parts;
   }
 
+  /**
+   * One heard path: each hop as "CODE Name" (resolved from the known
+   * nodes; "+N" when other nodes share the code), then SNR / RSSI.
+   */
+  private _renderRouteEntry(e: Record<string, unknown>) {
+    const nodes = (e.path_nodes as string[] | undefined) ?? [];
+    const hops = e.hop_count as number | undefined;
+    const meta: string[] = [];
+    if (typeof e.snr === 'number') meta.push(`SNR: ${e.snr}`);
+    if (typeof e.rssi === 'number') meta.push(`RSSI: ${e.rssi}`);
+    return html`
+      <div class="route-entry">
+        <div class="route-hops">
+          ${nodes.length
+            ? nodes.map((n, i) => {
+                const r = nodeDirectory.resolve(n);
+                const title = r.candidates.length > 1 ? `Possible nodes: ${r.candidates.join(', ')}` : '';
+                return html`${i ? html`<span class="route-sep">›</span>` : ''}<span class="route-hop" title=${title}>
+                  <code>${n.substring(0, 4).toUpperCase()}</code>
+                  <span class="route-name">${r.name ?? '?'}${r.others ? html`<span class="route-more"> +${r.others}</span>` : ''}</span></span>`;
+              })
+            : html`<span>${hops ? `${hops} hop${hops !== 1 ? 's' : ''}` : '0 hops (heard directly)'}</span>`}
+        </div>
+        ${meta.length ? html`<div class="route-meta">${nodes.length ? `${nodes.length} hop${nodes.length !== 1 ? 's' : ''} · ` : ''}${meta.join(' · ')}</div>` : ''}
+      </div>`;
+  }
+
   private _renderMessageDialog(msg: ChatMessage) {
     const hasRoute = msg.rxLogData && msg.rxLogData.length > 0;
     const routeText = hasRoute ? msg.rxLogData!.map(routeEntryText).join(' | ') : '';
@@ -437,8 +497,9 @@ export class MessageBubble extends LitElement {
             : html``}
           ${hasRoute
             ? html`
-                <div class="message-dialog-route" @click=${() => this._copyText(routeText)}>
-                  Route: ${routeText}
+                <div class="message-dialog-route" title="Click to copy the route"
+                  @click=${() => this._copyText(routeText)}>
+                  ${msg.rxLogData!.map((e) => this._renderRouteEntry(e))}
                 </div>
               `
             : html``}

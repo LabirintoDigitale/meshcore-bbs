@@ -4,6 +4,12 @@ All notable changes to **MeshCore BBS for Home Assistant** are documented here. 
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-10-01
+
+### Added
+
+- **Repeater names in message routes.** The message popup now shows each hop of the route as its code followed by the node's name (`9A92 IT-TS MntSpc Rpt › 86A8 QDD RPT › …`), resolved from all the nodes the radio knows (added and discovered). When several nodes share a code (common with 1-byte path hashes) the most likely one is shown — repeaters first, then the most recently heard — with `+N` and the full list in the tooltip; unknown codes show `?`. Clicking the route still copies it as codes.
+
 ## [0.7.0] - 2026-10-01
 
 ### Added

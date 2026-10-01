@@ -60,7 +60,9 @@ describe('meshcore-bot-settings', () => {
     await el.updateComplete;
     btn(el, 'Save bot').click();
     await vi.waitFor(() => expect(callWS).toHaveBeenCalledWith(expect.objectContaining({ type: 'meshcore_bbs/bot_set' })));
-    const sent = callWS.mock.calls.find((c) => c[0].type === 'meshcore_bbs/bot_set')![0].config;
+    const sent = (callWS.mock.calls.find((c) => c[0].type === 'meshcore_bbs/bot_set')![0] as {
+      config: { channels: Record<string, { rules: Array<{ trigger: string }> }> };
+    }).config;
     expect(sent.channels['1']).toEqual({ name: '#test', rules: [{ trigger: 'Test', match: 'exact', action: 'route_reply', enabled: true }] });
     expect(sent.channels['3'].rules[0].trigger).toBe('path');
     await vi.waitFor(() => expect(text(el)).toContain('Saved.'));
