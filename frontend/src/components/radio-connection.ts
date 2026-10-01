@@ -24,6 +24,8 @@ export class RadioConnection extends LitElement {
   @state() private _pending: { radio: RadioEntry; action: Action } | null = null;
   @state() private _busy = false;
   @state() private _error = '';
+  /** Done, but with a warning to read (e.g. BlueZ could not be blocked). */
+  @state() private _warning = '';
 
   static styles = [
     panelStyles,
@@ -82,6 +84,7 @@ export class RadioConnection extends LitElement {
 
   private _open(radio: RadioEntry, action: Action) {
     this._error = '';
+    this._warning = '';
     this._pending = { radio, action };
   }
 
@@ -96,9 +99,13 @@ export class RadioConnection extends LitElement {
     this._busy = true;
     this._error = '';
     try {
-      if (action === 'reload') await reloadRadio(this.hass, radio.entry_id);
-      else await setRadioEnabled(this.hass, radio.entry_id, action === 'enable');
-      this._pending = null;
+      if (action === 'reload') {
+        await reloadRadio(this.hass, radio.entry_id);
+      } else {
+        const res = await setRadioEnabled(this.hass, radio.entry_id, action === 'enable');
+        if (res?.bluetooth_error) this._warning = res.bluetooth_error;
+      }
+      if (!this._warning) this._pending = null;
       this.dispatchEvent(new CustomEvent('radios-changed', {
         detail: { entryId: radio.entry_id, action }, bubbles: true, composed: true,
       }));
@@ -141,7 +148,7 @@ export class RadioConnection extends LitElement {
     const text = {
       disconnect: {
         title: `Disconnect ${name}?`,
-        body: 'Home Assistant releases the Bluetooth link (the MeshCore entry is disabled), so the radio is free for e.g. the phone app.',
+        body: 'The MeshCore entry is disabled and the radio is blocked in the system Bluetooth, which drops the link, so the radio is free for e.g. the phone app. The pairing (PIN) is kept.',
         hint: 'Click its "off" chip in the header to reconnect.',
         button: 'Disconnect',
         cls: 'danger',
@@ -155,7 +162,7 @@ export class RadioConnection extends LitElement {
       },
       enable: {
         title: `Reconnect ${name}?`,
-        body: 'The MeshCore entry is enabled again and Home Assistant connects to the radio.',
+        body: 'The radio is unblocked in the system Bluetooth and the MeshCore entry is enabled again, so Home Assistant connects to it.',
         hint: 'Disconnect it from the phone app first. Connecting can take a few seconds.',
         button: 'Reconnect',
         cls: 'primary',
@@ -170,12 +177,21 @@ export class RadioConnection extends LitElement {
             <p>${text.body}</p>
             <div class="hint">${text.hint}</div>
             ${this._error ? html`<div class="error">${this._error}</div>` : nothing}
+            ${this._warning
+              ? html`<div class="error">Done, but the system Bluetooth could not be updated: ${this._warning}.
+                  ${p.action === 'disconnect'
+                    ? 'The radio may stay connected: run "bluetoothctl block <MAC>" on the host.'
+                    : 'If it does not connect, run "bluetoothctl unblock <MAC>" on the host.'}</div>`
+              : nothing}
           </div>
           <div class="dialog-footer">
-            <button class="dialog-button" ?disabled=${this._busy} @click=${this._close}>Cancel</button>
-            <button class="dialog-button ${text.cls}" ?disabled=${this._busy} @click=${this._confirm}>
-              ${this._busy ? 'Please wait…' : text.button}
-            </button>
+            ${this._warning
+              ? html`<button class="dialog-button primary" @click=${this._close}>Close</button>`
+              : html`
+                <button class="dialog-button" ?disabled=${this._busy} @click=${this._close}>Cancel</button>
+                <button class="dialog-button ${text.cls}" ?disabled=${this._busy} @click=${this._confirm}>
+                  ${this._busy ? 'Please wait…' : text.button}
+                </button>`}
           </div>
         </div>
       </div>`;

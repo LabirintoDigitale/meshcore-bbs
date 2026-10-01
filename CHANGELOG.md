@@ -4,6 +4,12 @@ All notable changes to **MeshCore BBS for Home Assistant** are documented here. 
 
 ## [Unreleased]
 
+## [0.7.7] - 2026-10-01
+
+### Fixed
+
+- **Disconnect left the Bluetooth radio connected.** A paired (bonded) radio is reconnected by the system Bluetooth stack (BlueZ) on its own within seconds, even with the MeshCore entry disabled and after a restart. *Disconnect* now also blocks the radio in BlueZ (over D-Bus), which drops the link and refuses new ones while keeping the pairing/PIN; *Reconnect* unblocks it before enabling the entry. If BlueZ cannot be reached the panel says so, with the `bluetoothctl` command to run instead.
+
 ## [0.7.6] - 2026-10-01
 
 ### Added

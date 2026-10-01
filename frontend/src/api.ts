@@ -1116,6 +1116,8 @@ export interface RadioEntry {
   title: string;
   connection_type: string; // 'ble' | 'usb' | 'tcp' | 'unknown'
   disabled: boolean;
+  /** Set by set_radio_enabled when the BlueZ block/unblock failed. */
+  bluetooth_error?: string | null;
 }
 
 /** All MeshCore radios, including disabled (disconnected) ones. */

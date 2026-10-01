@@ -86,4 +86,19 @@ describe('radio-connection chip', () => {
     await vi.waitFor(() => expect(q(el, '.error')?.textContent).toBe('busy'));
     expect(q(el, '.dialog')).not.toBeNull();
   });
+
+  it('keeps the dialog open with a warning when BlueZ could not be blocked', async () => {
+    api.setRadioEnabled.mockResolvedValueOnce({ bluetooth_error: 'cannot reach BlueZ' });
+    const el = await mount({ device: device('ble1') });
+    const changed = vi.fn();
+    el.addEventListener('radios-changed', changed);
+    buttonWith(el, 'Connected').click();
+    await el.updateComplete;
+    buttonWith(el, 'Disconnect').click();
+    await vi.waitFor(() => expect(q(el, '.error')?.textContent).toContain('cannot reach BlueZ'));
+    expect(changed).toHaveBeenCalled();
+    buttonWith(el, 'Close').click();
+    await el.updateComplete;
+    expect(q(el, '.dialog')).toBeNull();
+  });
 });
