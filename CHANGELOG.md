@@ -4,6 +4,12 @@ All notable changes to **MeshCore BBS for Home Assistant** are documented here. 
 
 ## [Unreleased]
 
+## [0.7.4] - 2026-10-01
+
+### Fixed
+
+- **Message activity stuck at 0 for some repeaters.** The chart used the upstream `_rate` sensors, which are a delta between two consecutive repeater polls and read 0 after every Home Assistant restart until the next poll — with a repeater polled every couple of hours it stayed flat. It now uses the hourly change of the cumulative message counters (kept by Home Assistant's statistics across restarts); for sparsely polled repeaters each poll's messages are spread over the hours before it. The old source remains as a fallback.
+
 ## [0.7.3] - 2026-10-01
 
 ### Fixed

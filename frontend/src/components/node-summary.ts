@@ -9,6 +9,7 @@ import {
   type SensorEval,
 } from '../utils/sensor-thresholds';
 import { longPress } from '../directives/long-press';
+import { changesToRates } from '../utils/rate-history';
 import {
   fetchLastNonZeroReading,
   fetchLastNumericReading,
@@ -480,6 +481,11 @@ export class NodeSummary extends LitElement {
     }
     if (series.length === 0) { this._rateHistory = []; return; }
 
+    // Preferred source: hourly change of the cumulative counters (survives
+    // HA restarts and sparse polling); fall back to the `_rate` sensors.
+    const fromTotals = await this._ratesFromTotals(wanted);
+    if (fromTotals) { this._rateHistory = fromTotals; return; }
+
     try {
       const stats = await this.hass.callWS<Record<string, Array<{ start?: string; mean?: number }>>>({
         type: 'recorder/statistics_during_period',
@@ -503,6 +509,43 @@ export class NodeSummary extends LitElement {
         .sort((a, b) => a.timestamp - b.timestamp);
     } catch {
       this._rateHistory = [];
+    }
+  }
+
+  /** Rate history from the counters' hourly change, or null when there is none. */
+  private async _ratesFromTotals(wanted: Array<[string, string]>): Promise<RatePoint[] | null> {
+    if (!this.hass) return null;
+    const ids: Array<[string, string]> = [];
+    for (const [seriesKey, totalsKey] of wanted) {
+      const info = this._findEntityIdMatching(totalsKey);
+      // Skip the derived `_rate` sibling, which also contains the key.
+      if (info && !info.entity_id.includes(`_${totalsKey}_rate_`)) ids.push([seriesKey, info.entity_id]);
+    }
+    if (!ids.length) return null;
+    try {
+      const stats = await this.hass.callWS<Record<string, Array<{ start?: string | number; change?: number | null }>>>({
+        type: 'recorder/statistics_during_period',
+        start_time: new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString(),
+        end_time: new Date().toISOString(),
+        statistic_ids: ids.map(([, id]) => id),
+        period: 'hour',
+        types: ['change'],
+      });
+      const byTs: Record<number, Record<string, number>> = {};
+      let any = false;
+      for (const [seriesKey, id] of ids) {
+        const pts = (stats[id] ?? [])
+          .filter((p) => p.start != null)
+          .map((p) => ({ start: new Date(p.start as string | number).getTime(), change: Number(p.change ?? 0) }));
+        if (pts.some((p) => p.change > 0)) any = true;
+        for (const r of changesToRates(pts)) (byTs[r.start] ??= {})[seriesKey] = r.perMin;
+      }
+      if (!any) return null;
+      return Object.entries(byTs)
+        .map(([ts, values]) => ({ timestamp: parseInt(ts, 10), values }))
+        .sort((a, b) => a.timestamp - b.timestamp);
+    } catch {
+      return null;
     }
   }
 
