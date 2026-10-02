@@ -4,6 +4,13 @@ All notable changes to **MeshCore BBS for Home Assistant** are documented here. 
 
 ## [Unreleased]
 
+## [0.7.9] - 2026-10-02
+
+### Changed
+
+- **Long replies are sent as numbered parts.** When a bot or BBS reply does not fit in one message, each part starts with its number on its own line (`1/2`, `2/2`, …). Parts break at line ends when possible.
+- **Message size is counted in bytes**, as MeshCore does: an accented letter takes 2 bytes, an emoji 4, so replies with emoji or accents no longer risk being cut by the radio. The bot keeps each message within 135 bytes (room for the radio name in front); the BBS within its *Max length* setting.
+
 ## [0.7.8] - 2026-10-02
 
 ### Added

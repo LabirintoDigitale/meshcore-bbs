@@ -200,7 +200,15 @@ async def test_write_post_and_cancel(bbs: Bbs) -> None:
 async def test_long_replies_are_split(bbs: Bbs) -> None:
     bbs.update_settings({"max_len": 20})
     parts = bbs.split(["x" * 45, "short"])
-    assert parts == ["x" * 20, "x" * 20, "x" * 5, "short"]
+    # Numbered parts ("1/3\n" = 4 bytes, so 16 of text each), short reply untouched.
+    assert parts == ["1/3\n" + "x" * 16, "2/3\n" + "x" * 16, "3/3\n" + "x" * 13, "short"]
+
+
+async def test_split_prefers_line_ends_and_counts_bytes(bbs: Bbs) -> None:
+    bbs.update_settings({"max_len": 30})
+    parts = bbs.split(["Menu principale\n1 Bacheca\n2 Scrivi\n3 Esci àèé"])
+    assert parts == ["1/2\nMenu principale\n1 Bacheca", "2/2\n2 Scrivi\n3 Esci àèé"]
+    assert all(len(p.encode("utf-8")) <= 30 for p in parts)
 
 
 # ─── admin commands ─────────────────────────────────────────────────────

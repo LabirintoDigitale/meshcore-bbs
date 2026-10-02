@@ -14,8 +14,8 @@ from custom_components.meshcore_bbs.bot import (
     async_register_bot_commands,
     contact_names,
     path_names_reply,
+    MAX_MESSAGE_BYTES,
     rule_matches,
-    split_lines,
 )
 from custom_components.meshcore_bbs.const import DOMAIN, MESHCORE_DOMAIN
 
@@ -144,11 +144,15 @@ def test_path_names_reply() -> None:
     assert path_names_reply("X", None, names) == ["@[X] direct (0 hops)"]
 
 
-def test_split_lines_keeps_messages_short() -> None:
-    lines = [f"{i:04X}: Repeater number {i}" for i in range(12)]
-    parts = split_lines(lines, limit=60)
-    assert all(len(p) <= 60 for p in parts) and len(parts) > 1
-    assert "\n".join(parts).split("\n") == lines
+def test_long_path_is_numbered() -> None:
+    names = contact_names(CONTACTS)
+    hops = [f"{i:02x}{i:02x}" for i in range(20)]
+    parts = path_names_reply("Alfa 10", {"path_nodes": hops}, names)
+    assert len(parts) > 1
+    assert all(len(p.encode("utf-8")) <= MAX_MESSAGE_BYTES for p in parts)
+    assert [p.split("\n")[0] for p in parts] == [f"{i}/{len(parts)}" for i in range(1, len(parts) + 1)]
+    body = [line for p in parts for line in p.split("\n")[1:]]
+    assert body[0] == "@[Alfa 10] 20 hops" and body[-1] == "1313: Unknown" and len(body) == 21
 
 
 async def test_path_action_names_the_hops(hass: HomeAssistant, bot: ChannelBot) -> None:

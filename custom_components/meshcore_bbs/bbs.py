@@ -38,7 +38,7 @@ from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
 from .radios import bbs_radio, handles_message, radios
-from .reply_format import route_reply
+from .reply_format import route_reply, split_message
 from .const import (
     EVENT_BBS_REQUEST,
     EVENT_BBS_UPDATED,
@@ -965,10 +965,12 @@ class Bbs:
         return self.split(self.handle(upk, user, text, meta)), True
 
     def split(self, replies: list[str]) -> list[str]:
+        """Each reply within ``max_len`` UTF-8 bytes; a split one is numbered 1/2, 2/2."""
         size = int(self.settings["max_len"])
         out: list[str] = []
         for r in replies:
-            out.extend(r[i:i + size] for i in range(0, len(r), size) or [0])
+            if r:
+                out.extend(split_message(r, size))
         return [r for r in out if r]
 
     # ── route of direct messages (for the "hops" action) ──

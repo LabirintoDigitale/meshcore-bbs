@@ -38,7 +38,7 @@ from homeassistant.helpers.storage import Store
 
 from .const import DOMAIN, MESHCORE_DOMAIN, STORAGE_VERSION
 from .radios import handles_message
-from .reply_format import route_reply
+from .reply_format import route_reply, split_message
 from .utils import enrich_rx_log_entries
 
 _LOGGER = logging.getLogger(__name__)
@@ -49,29 +49,15 @@ EVENT_BOT_UPDATED = "meshcore_bbs_bot_updated"
 MATCH_TYPES = ("exact", "starts_with", "contains")
 ACTIONS = ("route_reply", "path_names")
 DEFAULT_COOLDOWN = 30
-# Longest channel message the bot sends; longer replies are split by line.
-MAX_MESSAGE_LEN = 140
+# Longest channel message the bot sends, in UTF-8 bytes: MeshCore allows
+# about 160 including the "<radio name>: " prefix. Longer replies are split
+# into numbered parts ("1/2", "2/2").
+MAX_MESSAGE_BYTES = 135
 CONFIG_KEYS = ("enabled", "cooldown", "channels", "radio_entry_id")
 
 
 def _default_config() -> dict[str, Any]:
     return {"enabled": False, "cooldown": DEFAULT_COOLDOWN, "channels": {}, "radio_entry_id": ""}
-
-
-def split_lines(lines: list[str], limit: int = MAX_MESSAGE_LEN) -> list[str]:
-    """Pack lines into as few messages of at most ``limit`` chars as possible."""
-    out: list[str] = []
-    cur = ""
-    for line in lines:
-        line = line[:limit]
-        if cur and len(cur) + 1 + len(line) > limit:
-            out.append(cur)
-            cur = line
-        else:
-            cur = f"{cur}\n{line}" if cur else line
-    if cur:
-        out.append(cur)
-    return out
 
 
 def contact_names(contacts: list[Any]) -> list[tuple[str, str, int | None]]:
@@ -109,7 +95,7 @@ def path_names_reply(sender: str, entry: dict[str, Any] | None,
     n = len(nodes)
     lines = [f"@[{sender}] {n} hop{'s' if n != 1 else ''}"]
     lines += [f"{h.upper()}: {hop_name(h, names)}" for h in nodes]
-    return split_lines(lines)
+    return split_message("\n".join(lines), MAX_MESSAGE_BYTES)
 
 
 def rule_matches(rule: dict[str, Any], text: str) -> bool:
@@ -261,7 +247,7 @@ class ChannelBot:
             enrich_rx_log_entries(rx)
         first = rx[0] if rx else None
         if action == "route_reply":
-            return [route_reply(sender, first)]
+            return split_message(route_reply(sender, first), MAX_MESSAGE_BYTES)
         if action == "path_names":
             return path_names_reply(sender, first, self._names(entry_id))
         return []

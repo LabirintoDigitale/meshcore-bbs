@@ -236,6 +236,7 @@ export class BotSettings extends LitElement {
           message on that channel, the bot replies there with the route the message took — as one line
           (repeaters, SNR, RSSI, reception time) or as the list of repeaters with their names.
           Case doesn't matter; the bot never answers itself and answers each sender at most once per cooldown.
+          A reply too long for one message is sent as numbered parts (1/2, 2/2).
         </p>
         ${this._renderRadio(cfg, admin)}
         <div>
