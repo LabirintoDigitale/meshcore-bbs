@@ -518,6 +518,7 @@ export class NodesPage extends LitElement {
         .pendingAction=${this._pendingAction}
         ?open=${this._nodeDetailDialogOpen}
         @node-detail-closed=${() => { this._nodeDetailDialogOpen = false; }}
+        @node-updated=${(e: CustomEvent) => { e.stopPropagation(); this._selectedNode = e.detail.node; }}
         @node-message=${() => this._dispatchNodeAction('message')}
         @node-trace=${() => this._dispatchNodeAction('trace')}
         @node-add-contact=${() => this._dispatchNodeAction('add-contact')}

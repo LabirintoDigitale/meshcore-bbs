@@ -463,7 +463,12 @@ export class NodeDetailDialog extends LitElement {
     `;
   }
 
-  /** Reflect a saved route in the dialog without waiting for a contacts refresh. */
+  /**
+   * Reflect a saved route in the dialog without waiting for a contacts
+   * refresh. The owner re-binds ``.node`` on every render (Lit always
+   * re-sets object properties), so it gets the new node too via
+   * ``node-updated`` — otherwise its next render brings the old route back.
+   */
   private _onRouteChanged = (e: CustomEvent) => {
     const d = e.detail as { out_path: string; out_path_len: number; path_hash_mode: number };
     if (this.node && 'adv_name' in this.node) {
@@ -473,6 +478,9 @@ export class NodeDetailDialog extends LitElement {
         out_path_len: d.out_path_len,
         out_path_hash_mode: d.out_path_len < 0 ? -1 : d.path_hash_mode,
       };
+      this.dispatchEvent(new CustomEvent('node-updated', {
+        detail: { node: this.node }, bubbles: true, composed: true,
+      }));
     }
   };
 

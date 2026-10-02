@@ -4,6 +4,12 @@ All notable changes to **MeshCore BBS for Home Assistant** are documented here. 
 
 ## [Unreleased]
 
+## [0.8.8] - 2026-10-02
+
+### Fixed
+
+- **An open node card kept the old route after Save route / Reset to flood.** The route was saved, but the page that owns the card re-applied its stored copy of the node on its next render (Lit re-sets object properties every render), so the new route only appeared after closing and reopening the card. The card now hands the updated node back to its owner (Nodes tab and chat contact details).
+
 ## [0.8.7] - 2026-10-02
 
 ### Fixed

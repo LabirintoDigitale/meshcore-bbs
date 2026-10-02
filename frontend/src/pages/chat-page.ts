@@ -1281,6 +1281,7 @@ export class ChatPage extends LitElement {
         .node=${node ?? undefined}
         ?open=${!!node}
         @node-detail-closed=${close}
+        @node-updated=${(e: CustomEvent) => { e.stopPropagation(); this._detailContact = e.detail.node; }}
         @node-message=${(e: Event) => {
           // Already on the chat tab: open the conversation directly.
           e.stopPropagation();
