@@ -4,6 +4,12 @@ All notable changes to **MeshCore BBS for Home Assistant** are documented here. 
 
 ## [Unreleased]
 
+## [0.8.2] - 2026-10-02
+
+### Added
+
+- **Export Private Key in Key Management.** Next to Regenerate and Import, *Show private key* reads the companion's key (128 hex) with Copy and Hide buttons, so it can be backed up before a reflash and imported back to keep the same identity. The key is only shown in the dialog and is cleared when it closes; firmware built without key export is reported as such.
+
 ## [0.8.1] - 2026-10-02
 
 ### Fixed

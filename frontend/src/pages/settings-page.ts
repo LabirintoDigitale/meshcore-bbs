@@ -14,6 +14,7 @@ import '../components/command-dialog';
 import '../components/sensor-tile';
 import '../components/node-summary';
 import { copyText } from '../utils/clipboard';
+import { parseExportedKey } from '../utils/private-key';
 import { attachDialogA11y } from '../utils/dialog-a11y';
 import type { CompanionDeviceDescriptor } from '../components/node-summary';
 import { panelStyles } from '../styles';
@@ -102,6 +103,8 @@ export class SettingsPage extends LitElement {
   @state() private _confirmDialogOpen = false;
   @state() private _locationSource: 'gps' | 'manual' | 'ha_location' = 'manual';
   @state() private _importKeyValue = '';
+  @state() private _exportedKey = '';
+  @state() private _exportingKey = false;
 
   // Entity registry cache and companion device entities
   @state() private _deviceEntities: Record<string, EntityInfo[]> = {};
@@ -1310,6 +1313,30 @@ export class SettingsPage extends LitElement {
     return html`
       <div style="display: flex; flex-direction: column; gap: 16px;">
         <div class="danger-zone" style="margin-top: 0;">
+          <div class="danger-zone-title">Export Private Key</div>
+          <div style="font-size: 12px; color: var(--secondary-text-color); margin-bottom: 8px;">
+            Back up the key before reflashing: importing it later restores the same identity, contacts' trust and entity IDs. Anyone with this key can impersonate the node — keep it private.
+          </div>
+          ${this._exportedKey ? html`
+            <textarea
+              class="form-input"
+              readonly
+              rows="3"
+              style="width: 100%; box-sizing: border-box; font-family: monospace; font-size: 12px; word-break: break-all; resize: none;"
+              .value=${this._exportedKey}
+              @focus=${(e: Event) => (e.target as HTMLTextAreaElement).select()}
+            ></textarea>
+            <div style="display: flex; gap: 8px; margin-top: 8px;">
+              <button class="dialog-button" @click=${() => this._copyToClipboard(this._exportedKey)}>Copy</button>
+              <button class="dialog-button" @click=${() => { this._exportedKey = ''; }}>Hide</button>
+            </div>
+          ` : html`
+            <button class="dialog-button" ?disabled=${this._exportingKey} @click=${this._handleExportKey}>
+              ${this._exportingKey ? 'Reading…' : 'Show private key'}
+            </button>
+          `}
+        </div>
+        <div class="danger-zone" style="margin-top: 0;">
           <div class="danger-zone-title">Regenerate Identity</div>
           <div style="font-size: 12px; color: var(--secondary-text-color); margin-bottom: 8px;">
             Creates a new key pair. All contacts will need to re-add you. This will change all entity IDs — automations, scripts, and dashboards using current entity IDs will need to be updated.
@@ -2067,6 +2094,27 @@ export class SettingsPage extends LitElement {
 
   private _closeKeyManagementModal() {
     this._keyManagementModalOpen = false;
+    this._exportedKey = '';
+  }
+
+  private async _handleExportKey() {
+    if (!this.hass) return;
+    this._exportingKey = true;
+    try {
+      const result = await executeLocal(this.hass, 'export_private_key', undefined, this.config?.entry_id);
+      const parsed = result.success ? parseExportedKey(result.response) : null;
+      if (parsed?.ok) {
+        this._exportedKey = parsed.key;
+      } else if (parsed && parsed.reason === 'disabled') {
+        this._showStatusMessage('Key export is disabled in this firmware', 'error');
+      } else {
+        this._showStatusMessage(`Export failed: ${parsed ? parsed.detail : result.response}`, 'error');
+      }
+    } catch (error) {
+      this._showStatusMessage(`Error: ${String(error)}`, 'error');
+    } finally {
+      this._exportingKey = false;
+    }
   }
 
   // _fireMoreInfo removed — not currently used in settings context
