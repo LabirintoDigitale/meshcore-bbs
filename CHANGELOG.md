@@ -4,6 +4,12 @@ All notable changes to **MeshCore BBS for Home Assistant** are documented here. 
 
 ## [Unreleased]
 
+## [0.8.3] - 2026-10-02
+
+### Fixed
+
+- **The same channel message shown several times until reload.** When a radio reported one packet more than once (heard direct and through repeaters, each with its own receive time), the open conversation added a bubble for each report, while history kept only one — so the copies disappeared after a refresh. Live messages now use the same id the history stores them under, and the same sender + text within a minute is shown once.
+
 ## [0.8.2] - 2026-10-02
 
 ### Added

@@ -13,6 +13,9 @@ import {
   FETCH_MAX_RETRIES,
 } from '../constants';
 
+/** Live events of the same sender + text this close together are one message. */
+const LIVE_DUPLICATE_WINDOW_MS = 60_000;
+
 /** Background polling interval (30s — real-time events handle instant display) */
 const POLL_INTERVAL_MS = 30_000;
 /** Poll interval when API is erroring */
@@ -765,12 +768,21 @@ export class MessageStore {
       const timestampStr = (eventData.timestamp as string) || new Date().toISOString();
       const timestamp = new Date(timestampStr);
 
-      const baseId = generateId(timestampStr, sender, displayText);
+      // Same id the backend stores the message under: the event's own id
+      // when it has one (see _store_message_id), else the content hash.
+      const explicitId = eventData.id ?? eventData.message_id ?? eventData.send_id;
+      const baseId = explicitId ? String(explicitId) : generateId(timestampStr, sender, displayText);
       const id = `rt_${baseId}`;
 
-      // Only insert if not already present
+      // Only insert if not already present. The same packet can be reported
+      // more than once (heard direct and via repeaters, each with its own
+      // receive time): treat the same sender + text within a minute as one
+      // message. The store refetch stays authoritative.
       const alreadyExists = this._messages.some(
-        (m) => m.id === id || m.id === baseId,
+        (m) => m.id === id || m.id === baseId || (
+          !m.isOutgoing && m.sender === sender && m.text === displayText
+          && Math.abs(m.timestamp.getTime() - timestamp.getTime()) < LIVE_DUPLICATE_WINDOW_MS
+        ),
       );
       if (!alreadyExists) {
         const mentions = extractMentions(displayText);

@@ -94,3 +94,34 @@ describe('unread badge with a stable channel key', () => {
     expect(empty.badgeCount('1', 'a77aae')).toBe(4);
   });
 });
+
+describe('live duplicates of one packet', () => {
+  it('shows a message heard several times once', async () => {
+    const { store, fire } = setup();
+    stores.push(store);
+    await store.switchEntity(BASE_TEST, null, [BASE_SLOT1]);
+    const t0 = Date.now();
+    for (let i = 0; i < 4; i++) {
+      fire('meshcore_message', { ...msg(BASE_SLOT1, 'Test'), timestamp: new Date(t0 + i * 900).toISOString() });
+    }
+    expect(store.messages.map((m) => m.text)).toEqual(['Test']);
+  });
+
+  it('uses the event id when there is one', async () => {
+    const { store, fire } = setup();
+    stores.push(store);
+    await store.switchEntity(BASE_TEST, null, [BASE_SLOT1]);
+    fire('meshcore_message', { ...msg(BASE_SLOT1, 'uno'), id: 'abc123' });
+    expect(store.messages.map((m) => m.id)).toEqual(['rt_abc123']);
+  });
+
+  it('keeps the same text sent again later', async () => {
+    const { store, fire } = setup();
+    stores.push(store);
+    await store.switchEntity(BASE_TEST, null, [BASE_SLOT1]);
+    const t0 = Date.now();
+    fire('meshcore_message', { ...msg(BASE_SLOT1, 'Test'), timestamp: new Date(t0 - 120_000).toISOString() });
+    fire('meshcore_message', { ...msg(BASE_SLOT1, 'Test'), timestamp: new Date(t0).toISOString() });
+    expect(store.messages).toHaveLength(2);
+  });
+});
