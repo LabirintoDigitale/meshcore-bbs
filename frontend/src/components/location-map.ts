@@ -13,12 +13,14 @@ export type MapLayer = 'map' | 'satellite';
 
 /** Free tile sources: no API key, no account; attribution required. */
 export const TILE_SOURCES: Record<MapLayer, { url: string; attribution: string; maxZoom: number }> = {
-  // CARTO Voyager (OpenStreetMap data). The OSM Foundation's own tile
-  // servers (tile.openstreetmap.org) block requests coming from a LAN
-  // Home Assistant origin ("Access blocked ... tile usage policy").
+  // Esri World Street Map. The OSM Foundation's tile servers block requests
+  // from a LAN Home Assistant origin ("Access blocked ... tile usage
+  // policy"), and CARTO's basemaps now answer every tile with an
+  // "API KEY REQUIRED" placeholder. Esri's street tiles, like its imagery
+  // below, need no key.
   map: {
-    url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
-    attribution: '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors © <a href="https://carto.com/attributions" target="_blank" rel="noopener">CARTO</a>',
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
+    attribution: 'Tiles © Esri — Esri, HERE, Garmin, © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors, GIS User Community',
     maxZoom: 19,
   },
   satellite: {
@@ -45,7 +47,7 @@ function loadLayer(): MapLayer {
 
 /**
  * Small interactive map of one position (Leaflet) with a Map / Satellite
- * switch: OpenStreetMap tiles or Esri World Imagery, both free and
+ * switch: Esri World Street Map or Esri World Imagery, both free and
  * keyless. Scroll-wheel zoom works directly (no Ctrl).
  */
 @customElement('meshcore-location-map')

@@ -4,6 +4,12 @@ All notable changes to **MeshCore BBS for Home Assistant** are documented here. 
 
 ## [Unreleased]
 
+## [0.8.4] - 2026-10-02
+
+### Fixed
+
+- **Map view showed "API KEY REQUIRED".** CARTO's basemaps now answer every tile with that placeholder. The Map layer uses Esri World Street Map instead — free and keyless, like the Esri satellite imagery.
+
 ## [0.8.3] - 2026-10-02
 
 ### Fixed
