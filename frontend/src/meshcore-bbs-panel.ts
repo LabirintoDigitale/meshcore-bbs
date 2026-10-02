@@ -1037,11 +1037,14 @@ export class MeshCorePanel extends LitElement {
   private async _loadDeviceData() {
     if (!this.hass || !this._selectedEntryId) return;
 
+    const entryId = this._selectedEntryId;
     try {
       const [contacts, channels] = await Promise.all([
-        getContacts(this.hass, this._selectedEntryId),
-        getChannels(this.hass, this._selectedEntryId),
+        getContacts(this.hass, entryId),
+        getChannels(this.hass, entryId),
       ]);
+      // Radio switched meanwhile: this list belongs to the other radio.
+      if (entryId !== this._selectedEntryId) return;
       this._contacts = contacts;
       this._channels = channels;
 

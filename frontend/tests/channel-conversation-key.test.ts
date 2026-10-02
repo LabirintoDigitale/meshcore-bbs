@@ -125,3 +125,27 @@ describe('live duplicates of one packet', () => {
     expect(store.messages).toHaveLength(2);
   });
 });
+
+describe('switching conversation while a fetch is in flight', () => {
+  it('drops the old conversation result', async () => {
+    const pending: Array<(v: unknown) => void> = [];
+    const hass = {
+      states: {}, entities: {},
+      callWS: (msg: Record<string, unknown>) => new Promise((resolve) => {
+        if (msg.entity_id === BASE_TEST) pending.push(resolve);
+        else resolve({ messages: [], has_more: false });
+      }),
+      connection: { subscribeEvents: async () => () => {} },
+    } as unknown as HomeAssistant;
+    const store = new MessageStore({ node_name: 'Galileo', node_prefix: '1d71d9' } as unknown as PanelConfig);
+    stores.push(store);
+    store.setHass(hass);
+    const first = store.switchEntity(BASE_TEST, null, [BASE_SLOT1]);
+    await store.switchEntity('binary_sensor.meshcore_1d71d9_chan_k0123456789ab_messages', null, [GAL_SLOT5]);
+    // The Base Galileo fetch answers late, after Galileo's #test is open.
+    pending.forEach((r) => r({ messages: [{ id: 'b1', sender: 'X', text: 'da Base', timestamp: new Date().toISOString(),
+      message_type: 'channel', outgoing: false }], has_more: false }));
+    await first;
+    expect(store.messages).toEqual([]);
+  });
+});

@@ -4,6 +4,12 @@ All notable changes to **MeshCore BBS for Home Assistant** are documented here. 
 
 ## [Unreleased]
 
+## [0.8.10] - 2026-10-02
+
+### Fixed
+
+- **Doubled channel messages after switching radio.** A message fetch started for the previous conversation (30 s poll, debounced refetch, page load) could answer after another conversation was open and was merged into it — e.g. Base Galileo's #test history mixed into Galileo's #test, so every message showed twice until a reload. Fetches and live subscriptions now belong to the conversation they were started for and are dropped after a switch; the contact/channel list of a radio is likewise ignored if another radio was selected meanwhile.
+
 ## [0.8.9] - 2026-10-02
 
 ### Added

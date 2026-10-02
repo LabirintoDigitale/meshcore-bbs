@@ -37,6 +37,13 @@ export class MessageStore {
   private _entityId: string | null = null;
   /** Other entity ids live events of this conversation may carry (channel slot id). */
   private _liveIds: Set<string> = new Set();
+  /**
+   * Bumped on every conversation switch. A fetch started for an earlier
+   * conversation (a 30 s poll, the debounced refetch, a page load) can
+   * resolve after the switch; its result belongs to the old conversation
+   * and is dropped instead of being merged into the new one.
+   */
+  private _gen = 0;
   private _config: PanelConfig;
   private _hass: HomeAssistant | null = null;
   private _pollTimer: ReturnType<typeof setTimeout> | null = null;
@@ -200,6 +207,11 @@ export class MessageStore {
     // Live events of a channel carry its slot entity id while the history
     // is stored under the stable channel key: accept both.
     this._liveIds = new Set(liveIds);
+    this._gen++;
+    if (this._fetchDebounce) {
+      clearTimeout(this._fetchDebounce);
+      this._fetchDebounce = null;
+    }
 
     // Cleanup previous subscriptions
     this._stopUpdates();
@@ -270,6 +282,7 @@ export class MessageStore {
    * Called when user scrolls near the top of the chat.
    */
   async loadOlderMessages(): Promise<void> {
+    const gen = this._gen;
     if (this._loadingOlder || !this._hasOlderMessages || !this._hass || !this._entityId) {
       return;
     }
@@ -295,6 +308,7 @@ export class MessageStore {
         has_more: boolean;
       }>(msg);
 
+      if (gen !== this._gen) return;
       const older = result.messages.map(toClientMessage);
       this._hasOlderMessages = result.has_more;
 
@@ -309,7 +323,7 @@ export class MessageStore {
     } catch {
       // Silently fail — user can try scrolling up again
     } finally {
-      this._loadingOlder = false;
+      if (gen === this._gen) this._loadingOlder = false;
       this._notify();
     }
   }
@@ -337,6 +351,7 @@ export class MessageStore {
    * handler will retry on the next scroll event.
    */
   async loadNewerMessages(): Promise<void> {
+    const gen = this._gen;
     if (
       this._loadingNewer ||
       !this._hasNewerMessages ||
@@ -372,6 +387,7 @@ export class MessageStore {
         has_more: boolean;
       }>(msg);
 
+      if (gen !== this._gen) return;
       const newer = result.messages.map(toClientMessage);
       this._hasNewerMessages = result.has_more;
 
@@ -402,7 +418,7 @@ export class MessageStore {
     } catch {
       // Silent fail — the scroll handler retries on the next event
     } finally {
-      this._loadingNewer = false;
+      if (gen === this._gen) this._loadingNewer = false;
       this._notify();
     }
   }
@@ -475,6 +491,7 @@ export class MessageStore {
    * Fetch messages from the persistent message store via WS command.
    */
   private async _fetchMessages(entityId: string): Promise<void> {
+    const gen = this._gen;
     if (!this._hass) return;
 
     this._loading = true;
@@ -491,6 +508,7 @@ export class MessageStore {
         limit,
       });
 
+      if (gen !== this._gen) return;
       const fetched = result.messages.map(toClientMessage);
       this._hasOlderMessages = result.has_more;
 
@@ -527,7 +545,7 @@ export class MessageStore {
       this._error = `Failed to fetch messages: ${message}`;
       this._retryCount++;
     } finally {
-      this._loading = false;
+      if (gen === this._gen) this._loading = false;
       this._notify();
     }
   }
@@ -557,6 +575,7 @@ export class MessageStore {
     entityId: string,
     anchorId: string,
   ): Promise<void> {
+    const gen = this._gen;
     if (!this._hass) return;
 
     this._loading = true;
@@ -564,6 +583,7 @@ export class MessageStore {
 
     try {
       const result = await getMessagesAround(this._hass, entityId, anchorId);
+      if (gen !== this._gen) return;
 
       const fetched = result.messages.map(toClientMessage);
       this._hasOlderMessages = result.has_more_before;
@@ -611,7 +631,7 @@ export class MessageStore {
       this._error = `Failed to fetch messages: ${message}`;
       this._retryCount++;
     } finally {
-      this._loading = false;
+      if (gen === this._gen) this._loading = false;
       this._notify();
     }
   }
@@ -636,6 +656,7 @@ export class MessageStore {
    * Subscribe to real-time WebSocket events for instant message display.
    */
   private async _subscribeRealtime(entityId: string): Promise<void> {
+    const gen = this._gen;
     if (!this._hass) return;
 
     const unsubs: Array<() => void> = [];
@@ -663,6 +684,12 @@ export class MessageStore {
       );
       unsubs.push(unsubDelivery);
 
+      // Switched conversation while subscribing: these belong to the old
+      // one — drop them rather than leak them alongside the new ones.
+      if (gen !== this._gen) {
+        unsubs.forEach((fn) => fn());
+        return;
+      }
       this._realtimeSubscriptions = unsubs;
     } catch (err) {
       unsubs.forEach((fn) => fn());
@@ -949,6 +976,7 @@ export class MessageStore {
    * re-fetching the entire conversation on every cycle.
    */
   private async _pollFetch(entityId: string): Promise<void> {
+    const gen = this._gen;
     if (!this._hass) return;
 
     // When the buffer tail isn't the conversation's
@@ -985,6 +1013,7 @@ export class MessageStore {
         has_more: boolean;
       }>(msg);
 
+      if (gen !== this._gen) return;
       if (result.messages.length === 0) {
         this._error = null;
         this._retryCount = 0;
