@@ -4,6 +4,12 @@ All notable changes to **MeshCore BBS for Home Assistant** are documented here. 
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-10-02
+
+### Fixed
+
+- **"Failed to copy" when Home Assistant is opened over plain HTTP.** The browser clipboard API exists only on HTTPS or localhost, so the copy buttons (public key in Settings, message text and route in chat) failed on a LAN address like `http://192.168.x.x:8123`. They now fall back to the legacy copy method.
+
 ## [0.8.0] - 2026-10-02
 
 ### Fixed

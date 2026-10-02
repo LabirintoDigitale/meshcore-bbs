@@ -3,6 +3,7 @@ import { customElement, property, state } from 'lit/decorators.js';
 import type { ChatMessage, MessageGroup, DeliveryStatus } from '../types';
 import { formatTimestamp } from '../chat/message-parser';
 import { attachDialogA11y } from '../utils/dialog-a11y';
+import { copyText } from '../utils/clipboard';
 import { nodeDirectory, NodeDirectoryController } from '../chat/node-directory';
 
 /**
@@ -528,19 +529,7 @@ export class MessageBubble extends LitElement {
   }
 
   private async _copyText(text: string) {
-    try {
-      await navigator.clipboard.writeText(text);
-    } catch {
-      // Fallback for older browsers
-      const textarea = document.createElement('textarea');
-      textarea.value = text;
-      textarea.style.position = 'fixed';
-      textarea.style.opacity = '0';
-      document.body.appendChild(textarea);
-      textarea.select();
-      document.execCommand('copy');
-      document.body.removeChild(textarea);
-    }
+    await copyText(text);
     this._selectedMessage = null;
   }
 

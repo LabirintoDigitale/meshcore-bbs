@@ -13,6 +13,7 @@ import '../components/confirm-dialog';
 import '../components/command-dialog';
 import '../components/sensor-tile';
 import '../components/node-summary';
+import { copyText } from '../utils/clipboard';
 import { attachDialogA11y } from '../utils/dialog-a11y';
 import type { CompanionDeviceDescriptor } from '../components/node-summary';
 import { panelStyles } from '../styles';
@@ -1414,10 +1415,9 @@ export class SettingsPage extends LitElement {
   }
 
   private async _copyToClipboard(text: string) {
-    try {
-      await navigator.clipboard.writeText(text);
+    if (await copyText(text)) {
       this._showStatusMessage('Copied to clipboard', 'success');
-    } catch {
+    } else {
       this._showStatusMessage('Failed to copy', 'error');
     }
   }
