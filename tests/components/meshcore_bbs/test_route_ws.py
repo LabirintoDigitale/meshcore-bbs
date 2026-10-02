@@ -116,6 +116,25 @@ async def test_reset_clears_the_sdk_contact_too(hass: HomeAssistant, coord) -> N
     })
     assert (sdk_contact["out_path"], sdk_contact["out_path_len"], sdk_contact["out_path_hash_mode"]) == ("", -1, -1)
 
+
+async def test_save_and_reset_update_every_copy(hass: HomeAssistant, coord) -> None:
+    """The lookup returns a copy: the SDK table and the coordinator cache still change."""
+    sdk_table = {CONTACT["public_key"]: dict(CONTACT)}
+    coord.api.mesh_core.contacts = sdk_table
+    coord.api.mesh_core.get_contact_by_key_prefix = MagicMock(side_effect=lambda p: dict(CONTACT))
+    conn = _Connection()
+    await _call_ws(route_ws.ws_set_contact_route, hass, conn, {
+        "id": 1, "pubkey_prefix": "1d71d95287fc", "repeaters": [RPT1], "reset": False,
+    })
+    sdk = sdk_table[CONTACT["public_key"]]
+    assert (sdk["out_path"], sdk["out_path_len"], sdk["out_path_hash_mode"]) == ("6522", 1, 1)
+    assert coord._contacts["1d71d95287fc"]["out_path"] == "6522"
+    await _call_ws(route_ws.ws_set_contact_route, hass, conn, {
+        "id": 2, "pubkey_prefix": "1d71d95287fc", "repeaters": [], "reset": True,
+    })
+    assert (sdk["out_path"], sdk["out_path_len"]) == ("", -1)
+    assert coord._contacts["1d71d95287fc"]["out_path_len"] == -1
+
 async def test_errors(hass: HomeAssistant, coord) -> None:
     conn = _Connection()
     coord.api.mesh_core.get_contact_by_key_prefix.return_value = None

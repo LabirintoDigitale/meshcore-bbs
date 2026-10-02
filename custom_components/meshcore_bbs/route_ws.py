@@ -146,9 +146,14 @@ async def ws_set_contact_route(hass, connection, msg):
     route = {"out_path": route_hex, "out_path_len": hops,
              "out_path_hash_mode": mode if not reset else -1}
     contact.update(route)
-    cached = getattr(coordinator, "_contacts", {}).get(key)
-    if isinstance(cached, dict):
-        cached.update(route)
+    # Every copy of this contact: the lookup may hand back a copy rather
+    # than the dict the SDK keeps in ``contacts``.
+    pubkey = contact.get("public_key")
+    for table in (getattr(api.mesh_core, "contacts", None), getattr(coordinator, "_contacts", None)):
+        if isinstance(table, dict):
+            for other in table.values():
+                if isinstance(other, dict) and other.get("public_key") == pubkey:
+                    other.update(route)
     if hasattr(coordinator, "mark_contact_dirty"):
         coordinator.mark_contact_dirty(key)
     if hasattr(coordinator, "get_all_contacts") and hasattr(coordinator, "async_set_updated_data"):

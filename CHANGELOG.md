@@ -4,6 +4,12 @@ All notable changes to **MeshCore BBS for Home Assistant** are documented here. 
 
 ## [Unreleased]
 
+## [0.8.7] - 2026-10-02
+
+### Fixed
+
+- **Saved or reset routes still not shown.** The SDK's contact lookup can return a copy of the contact, so writing the new route into it did not reach the table the panel reads. Save route and Reset to flood now update every copy of the contact (the SDK's contact table and the coordinator's cache).
+
 ## [0.8.6] - 2026-10-02
 
 ### Fixed
