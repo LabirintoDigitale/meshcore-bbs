@@ -4,6 +4,12 @@ All notable changes to **MeshCore BBS for Home Assistant** are documented here. 
 
 ## [Unreleased]
 
+## [0.8.6] - 2026-10-02
+
+### Fixed
+
+- **"Reset to flood" kept showing the old route.** Since 0.8.5 routes are read from the SDK's copy of the radio's contacts, and not every SDK version updates that copy on `reset_path`. Saving or resetting a route now writes the result into it explicitly.
+
 ## [0.8.5] - 2026-10-02
 
 ### Fixed

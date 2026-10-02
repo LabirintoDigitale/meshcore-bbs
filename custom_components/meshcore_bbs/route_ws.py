@@ -138,13 +138,17 @@ async def ws_set_contact_route(hass, connection, msg):
 
     # Reflect the new route in the coordinator's contact cache so the panel
     # sees it on the next contacts fetch (same pattern as add/remove).
+    # The SDK's own contact dict is written explicitly too: not every SDK
+    # version reflects reset_path locally, and the panel reads routes from
+    # it (see ws_api._device_route_overlay).
     api.mesh_core._contacts_dirty = True
     key = contact.get("public_key", "")[:12]
+    route = {"out_path": route_hex, "out_path_len": hops,
+             "out_path_hash_mode": mode if not reset else -1}
+    contact.update(route)
     cached = getattr(coordinator, "_contacts", {}).get(key)
     if isinstance(cached, dict):
-        cached["out_path"] = route_hex
-        cached["out_path_len"] = hops
-        cached["out_path_hash_mode"] = mode if not reset else -1
+        cached.update(route)
     if hasattr(coordinator, "mark_contact_dirty"):
         coordinator.mark_contact_dirty(key)
     if hasattr(coordinator, "get_all_contacts") and hasattr(coordinator, "async_set_updated_data"):

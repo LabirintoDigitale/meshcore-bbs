@@ -105,6 +105,17 @@ async def test_reset_to_flood(hass: HomeAssistant, coord) -> None:
     assert coord._contacts["1d71d95287fc"]["out_path_len"] == -1
 
 
+
+async def test_reset_clears_the_sdk_contact_too(hass: HomeAssistant, coord) -> None:
+    """reset_path may not touch the SDK's dict: the route must still read as flood."""
+    sdk_contact = {**CONTACT, "out_path": "5097", "out_path_len": 1, "out_path_hash_mode": 1}
+    coord.api.mesh_core.get_contact_by_key_prefix = MagicMock(return_value=sdk_contact)
+    conn = _Connection()
+    await _call_ws(route_ws.ws_set_contact_route, hass, conn, {
+        "id": 1, "pubkey_prefix": "1d71d95287fc", "repeaters": [], "reset": True,
+    })
+    assert (sdk_contact["out_path"], sdk_contact["out_path_len"], sdk_contact["out_path_hash_mode"]) == ("", -1, -1)
+
 async def test_errors(hass: HomeAssistant, coord) -> None:
     conn = _Connection()
     coord.api.mesh_core.get_contact_by_key_prefix.return_value = None
