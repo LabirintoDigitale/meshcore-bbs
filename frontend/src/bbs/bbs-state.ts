@@ -107,13 +107,18 @@ export class BbsState {
    * and Bot controls are hidden.
    */
   get active(): boolean {
-    const radio = this.snapshot?.radio_entry_id;
+    const radio = this.bbsRadio;
     return !radio || !this.activeEntryId || this.activeEntryId === radio;
+  }
+
+  /** Radio the BBS runs on: the chosen one (even while disconnected), else the effective one. */
+  get bbsRadio(): string | null {
+    return this.snapshot?.settings?.radio_entry_id || this.snapshot?.radio_entry_id || null;
   }
 
   /** Name of the radio BBS and Bot run on. */
   get radioName(): string {
-    const radio = this.snapshot?.radio_entry_id;
+    const radio = this.bbsRadio;
     return this.snapshot?.radios?.find((r) => r.entry_id === radio)?.name ?? '';
   }
 

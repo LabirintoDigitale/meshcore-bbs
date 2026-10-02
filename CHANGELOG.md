@@ -4,6 +4,17 @@ All notable changes to **MeshCore BBS for Home Assistant** are documented here. 
 
 ## [Unreleased]
 
+## [0.7.8] - 2026-10-02
+
+### Added
+
+- **Bot action "Path with repeater names".** Replies with one line per repeater of the path the message took — `9A92: Cesura90 Repeater` — with the name from the radio's contacts, `Unknown` when not found. Long paths are split over several messages.
+- **Radio choice for the bot.** Settings → Bot has its own *Radio for the bot* selector (default: same radio as the BBS); the channel list follows the chosen radio. The bot settings are no longer hidden when another radio is selected in the panel.
+
+### Changed
+
+- **A chosen radio is never swapped for another one.** When the radio chosen for the BBS or the bot is not connected, that automation pauses (and Settings says so) instead of moving to the first connected radio — which depends on setup order and changed when a radio was disconnected and reconnected. The BBS selector has an explicit *Automatic* option for the old behaviour.
+
 ## [0.7.7] - 2026-10-01
 
 ### Fixed

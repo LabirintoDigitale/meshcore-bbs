@@ -43,10 +43,17 @@ def radio_for_entity(hass: HomeAssistant, entity_id: Any) -> str | None:
 
 
 def bbs_radio(hass: HomeAssistant, configured: str | None) -> str | None:
-    """The radio automations run on: the configured one if connected, else the first."""
+    """The radio automations run on.
+
+    With a radio chosen in Settings, only that one — ``None`` while it is
+    not connected, so the automation pauses instead of moving to another
+    radio (the first radio depends on setup order, which changes when a
+    radio is disconnected and reconnected). With no choice, the first
+    connected radio.
+    """
     known = radios(hass)
-    if configured and any(r["entry_id"] == configured for r in known):
-        return configured
+    if configured:
+        return configured if any(r["entry_id"] == configured for r in known) else None
     return known[0]["entry_id"] if known else None
 
 
@@ -63,6 +70,8 @@ def handles_message(
     """
     known = radios(hass)
     radio = bbs_radio(hass, configured)
+    if radio is None and configured:
+        return (False, None)  # chosen radio not connected: paused
     receiving = radio_for_entity(hass, data.get("entity_id"))
     if receiving is None:
         return (len(known) <= 1, radio)

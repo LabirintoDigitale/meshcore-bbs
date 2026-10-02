@@ -9,7 +9,14 @@ from homeassistant.core import HomeAssistant
 from homeassistant.setup import async_setup_component
 from pytest_homeassistant_custom_component.common import async_mock_service
 
-from custom_components.meshcore_bbs.bot import ChannelBot, async_register_bot_commands, rule_matches
+from custom_components.meshcore_bbs.bot import (
+    ChannelBot,
+    async_register_bot_commands,
+    contact_names,
+    path_names_reply,
+    rule_matches,
+    split_lines,
+)
 from custom_components.meshcore_bbs.const import DOMAIN, MESHCORE_DOMAIN
 
 RX = [{"path": "9a9286a8146c", "path_hash_size": 2, "snr": -9.25, "rssi": -122}]
@@ -117,3 +124,71 @@ async def test_ws_get_and_set(hass: HomeAssistant, hass_ws_client, bot: ChannelB
         "channels": {"2": {"rules": [{"trigger": "t", "match": "fuzzy"}]}}}})
     res = await client.receive_json()
     assert res["error"]["code"] == "invalid_format"
+
+
+# ─── path_names action and the bot's own radio ──────────────────────────
+
+CONTACTS = [
+    {"public_key": "9a92" + "00" * 30, "adv_name": "Cesura90 Repeater", "type": 2},
+    {"public_key": "146c" + "11" * 30, "adv_name": "Mario phone", "type": 1},
+    {"public_key": "146c" + "22" * 30, "adv_name": "Feltre Repeater", "type": 2},
+]
+
+
+def test_path_names_reply() -> None:
+    names = contact_names(CONTACTS)
+    entry = {"path_nodes": ["9a92", "86a8", "146c"]}
+    assert path_names_reply("Alfa 10", entry, names) == [
+        "@[Alfa 10] 3 hops\n9A92: Cesura90 Repeater\n86A8: Unknown\n146C: Feltre Repeater"]
+    assert path_names_reply("X", {"path_nodes": []}, names) == ["@[X] direct (0 hops)"]
+    assert path_names_reply("X", None, names) == ["@[X] direct (0 hops)"]
+
+
+def test_split_lines_keeps_messages_short() -> None:
+    lines = [f"{i:04X}: Repeater number {i}" for i in range(12)]
+    parts = split_lines(lines, limit=60)
+    assert all(len(p) <= 60 for p in parts) and len(parts) > 1
+    assert "\n".join(parts).split("\n") == lines
+
+
+async def test_path_action_names_the_hops(hass: HomeAssistant, bot: ChannelBot) -> None:
+    hass.data[MESHCORE_DOMAIN] = {"BASE": SimpleNamespace(
+        pubkey="a77aae" + "00" * 29, name="Base", get_all_contacts=lambda: CONTACTS)}
+    bot.set_config({**bot.config, "channels": {"3": {"name": "#path", "rules": [
+        {"trigger": "path", "match": "exact", "action": "path_names"}]}}})
+    calls = async_mock_service(hass, MESHCORE_DOMAIN, "send_channel_message")
+    await bot.async_handle_event(_msg("path"))
+    assert calls[0].data["message"] == (
+        "@[Alfa 10] 3 hops\n9A92: Cesura90 Repeater\n86A8: Unknown\n146C: Feltre Repeater")
+    assert calls[0].data["entry_id"] == "BASE"
+
+
+async def test_bot_radio_choice_is_strict(hass: HomeAssistant, bot: ChannelBot) -> None:
+    hass.data[MESHCORE_DOMAIN] = {
+        "PHONE": SimpleNamespace(pubkey="1d71d9" + "00" * 29, name="Galileo"),
+        "BASE": SimpleNamespace(pubkey="a77aae" + "00" * 29, name="Base"),
+    }
+    calls = async_mock_service(hass, MESHCORE_DOMAIN, "send_channel_message")
+    bot.set_config({**bot.config, "cooldown": 0, "radio_entry_id": "BASE"})
+
+    def on(radio: str) -> SimpleNamespace:
+        return _msg("path", entity_id=f"binary_sensor.meshcore_{radio}_ch_3_messages")
+
+    await bot.async_handle_event(on("1d71d9"))  # heard by the other radio: ignored
+    assert calls == []
+    await bot.async_handle_event(on("a77aae"))
+    assert calls[0].data["entry_id"] == "BASE"
+    # Chosen radio disconnected: the bot pauses instead of moving to Galileo.
+    del hass.data[MESHCORE_DOMAIN]["BASE"]
+    await bot.async_handle_event(on("1d71d9"))
+    assert len(calls) == 1
+
+
+async def test_radio_choice_is_saved(hass: HomeAssistant, bot: ChannelBot) -> None:
+    bot.set_config({**bot.config, "radio_entry_id": "BASE"})
+    await bot.async_flush()
+    fresh = ChannelBot(hass)
+    await fresh.async_load()
+    assert fresh.config["radio_entry_id"] == "BASE"
+    fresh.set_config({**fresh.config, "radio_entry_id": ""})
+    assert fresh.configured_radio() is None

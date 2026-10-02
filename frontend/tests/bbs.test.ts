@@ -278,7 +278,7 @@ describe('BBS with two radios', () => {
     const el = await mount<HTMLElement & { updateComplete: Promise<unknown> }>('meshcore-bbs-settings', {
       hass: fakeHass(true, callWS),
     });
-    await vi.waitFor(() => expect(el.shadowRoot!.textContent).toContain('BBS and Bot run on Base Galileo'));
+    await vi.waitFor(() => expect(el.shadowRoot!.textContent).toContain('The BBS runs on Base Galileo'));
     expect(el.shadowRoot!.querySelector('textarea')).toBeNull();
   });
 
@@ -288,8 +288,26 @@ describe('BBS with two radios', () => {
     const el = await mount<HTMLElement & { updateComplete: Promise<unknown> }>('meshcore-bbs-settings', {
       hass: fakeHass(true, vi.fn(async () => snap)),
     });
-    await vi.waitFor(() => expect(el.shadowRoot!.textContent).toContain('Radio for BBS and Bot'));
+    await vi.waitFor(() => expect(el.shadowRoot!.textContent).toContain('Radio for the BBS'));
     const options = [...el.shadowRoot!.querySelectorAll('select option')].map((o) => o.textContent);
-    expect(options).toEqual(['Base Galileo', 'Galileo']);
+    expect(options).toEqual(['Automatic — first connected radio (may change)', 'Base Galileo', 'Galileo']);
+    expect(el.shadowRoot!.textContent).toContain('Pick a radio so the BBS never moves');
+  });
+
+  it('a chosen BBS radio that is disconnected stays chosen and is reported', async () => {
+    const snap = snapshot({
+      radio_entry_id: null,
+      radios: [{ entry_id: 'PHONE', name: 'Galileo' }],
+    });
+    snap.settings.radio_entry_id = 'BASE';
+    bbsState.setSnapshot(snap);
+    bbsState.setActiveEntry('BASE');
+    expect(bbsState.bbsRadio).toBe('BASE');
+    const el = await mount<HTMLElement & { updateComplete: Promise<unknown> }>('meshcore-bbs-settings', {
+      hass: fakeHass(true, vi.fn(async () => snap)),
+    });
+    await vi.waitFor(() => expect(el.shadowRoot!.textContent).toContain('the BBS is paused'));
+    const sel = el.shadowRoot!.querySelector('select') as HTMLSelectElement;
+    expect(sel.value).toBe('BASE');
   });
 });

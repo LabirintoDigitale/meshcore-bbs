@@ -151,10 +151,10 @@ export class BbsSettingsCard extends LitElement {
         ${this._renderVersion()}</div>`;
     }
     if (!bbsState.active) {
-      return html`<div class="card"><div class="card-title">BBS &amp; Bot</div>
-        <div class="sub">BBS and Bot run on <b>${bbsState.radioName || 'another radio'}</b>.
-          This radio only shows and sends messages — select ${bbsState.radioName || 'that radio'}
-          in the top-right menu to configure BBS and Bot.</div></div>`;
+      return html`<div class="card"><div class="card-title">BBS</div>
+        <div class="sub">The BBS runs on <b>${bbsState.radioName || 'another radio'}</b>.
+          Select ${bbsState.radioName || 'that radio'} in the top-right menu to configure it.
+          The bot below has its own radio choice.</div></div>`;
     }
     if (!this._isAdmin) {
       return html`<div class="card"><div class="card-title">BBS
@@ -227,17 +227,25 @@ export class BbsSettingsCard extends LitElement {
           <span><b>${snap.posts.length}</b> posts</span>
         </div>
 
-        ${(snap.radios?.length ?? 0) > 1 ? html`
+        ${(snap.radios?.length ?? 0) > 1 || snap.settings.radio_entry_id ? (() => {
+          const chosen = this._value('radio_entry_id') || '';
+          const radios = snap.radios ?? [];
+          const missing = chosen && !radios.some((r) => r.entry_id === chosen);
+          return html`
           <div style="margin-top: 16px;">
-            <label>Radio for BBS and Bot</label>
-            <select .value=${this._value('radio_entry_id') || snap.radio_entry_id || ''}
+            <label>Radio for the BBS</label>
+            <select .value=${chosen}
               @change=${(e: Event) => this._set('radio_entry_id', (e.target as HTMLSelectElement).value)}>
-              ${snap.radios!.map((r) => html`<option value=${r.entry_id}
-                ?selected=${(this._value('radio_entry_id') || snap.radio_entry_id) === r.entry_id}>${r.name}</option>`)}
+              <option value="" ?selected=${!chosen}>Automatic — first connected radio (may change)</option>
+              ${missing ? html`<option value=${chosen} ?selected=${true}>Chosen radio — not connected</option>` : nothing}
+              ${radios.map((r) => html`<option value=${r.entry_id} ?selected=${chosen === r.entry_id}>${r.name}</option>`)}
             </select>
-            <div class="hint">BBS and Bot answer only messages received by this radio, and reply through it.
-              The other radios just show and send messages.</div>
-          </div>` : nothing}
+            <div class="hint">The BBS answers only messages received by this radio, and replies through it.
+              The other radios just show and send messages.
+              ${missing ? html`<b>The chosen radio is not connected: the BBS is paused until it comes back.</b>` : nothing}
+              ${!chosen ? html`<b>Pick a radio so the BBS never moves to another one.</b>` : nothing}</div>
+          </div>`;
+        })() : nothing}
         <div class="grid" style="margin-top: 16px;">
           <div>
             <label>BBS name</label>

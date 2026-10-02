@@ -33,7 +33,8 @@ def test_radio_for_entity(hass: HomeAssistant, two_radios) -> None:
 def test_bbs_radio_defaults_to_first(hass: HomeAssistant, two_radios) -> None:
     assert bbs_radio(hass, None) == "BASE"
     assert bbs_radio(hass, "PHONE") == "PHONE"
-    assert bbs_radio(hass, "GONE") == "BASE"
+    # A chosen radio that is not connected pauses; never moves to another one.
+    assert bbs_radio(hass, "GONE") is None
 
 
 def test_handles_message(hass: HomeAssistant, two_radios) -> None:
@@ -44,6 +45,9 @@ def test_handles_message(hass: HomeAssistant, two_radios) -> None:
     assert handles_message(hass, "PHONE", phone_msg) == (True, "PHONE")
     # Unknown radio with two radios connected: not handled
     assert handles_message(hass, None, {})[0] is False
+    # Chosen radio disconnected: nothing handled, on any radio
+    assert handles_message(hass, "GONE", base_msg) == (False, None)
+    assert handles_message(hass, "GONE", {}) == (False, None)
 
 
 @pytest.fixture

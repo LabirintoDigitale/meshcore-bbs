@@ -3,13 +3,21 @@ import { customElement, property, state } from 'lit/decorators.js';
 import {
   getBotConfig,
   getChannels,
+  getRadioEntries,
   setBotConfig,
+  type BotAction,
   type BotConfig,
   type BotMatch,
   type BotRule,
+  type RadioEntry,
 } from '../api';
 import type { Channel, HomeAssistant } from '../types';
 import { bbsState, BbsStateController } from '../bbs/bbs-state';
+
+const ACTION_LABELS: Record<BotAction, string> = {
+  route_reply: 'Reply with route',
+  path_names: 'Path with repeater names',
+};
 
 const MATCH_LABELS: Record<BotMatch, string> = {
   exact: 'Message is',
@@ -33,12 +41,15 @@ export class BotSettings extends LitElement {
 
   @state() private _config: BotConfig | null = null;
   @state() private _channels: Channel[] = [];
+  @state() private _radios: RadioEntry[] = [];
+  /** Radio whose channels are listed (the bot's radio when the list was loaded). */
+  private _channelsRadio: string | undefined;
   @state() private _selected: number | null = null;
   @state() private _dirty = false;
   @state() private _saving = false;
   @state() private _msg = '';
   @state() private _err = '';
-  // Hidden when another radio than the BBS/Bot one is selected.
+  // Re-render when the BBS snapshot (radios, BBS radio) changes.
   protected readonly bbsController = new BbsStateController(this);
 
   static styles = css`
@@ -94,16 +105,73 @@ export class BotSettings extends LitElement {
   private async _load() {
     if (!this.hass) return;
     try {
-      const [config, channels] = await Promise.all([
-        getBotConfig(this.hass),
-        getChannels(this.hass, this.entryId),
-      ]);
+      const [config, radios] = await Promise.all([getBotConfig(this.hass), getRadioEntries(this.hass)]);
       this._config = config;
-      this._channels = [...channels].sort((a, b) => a.channel_idx - b.channel_idx);
-      if (this._selected === null && this._channels.length) this._selected = this._channels[0].channel_idx;
+      this._radios = radios;
+      await this._loadChannels();
     } catch (err) {
       this._err = errMessage(err);
     }
+  }
+
+  /** Radio the bot runs on: its own choice, else the BBS radio, else the selected one. */
+  private get _botRadio(): string | undefined {
+    return this._config?.radio_entry_id || bbsState.bbsRadio || this.entryId || undefined;
+  }
+
+  private _radioName(entryId: string | undefined): string {
+    if (!entryId) return '';
+    return bbsState.snapshot?.radios?.find((r) => r.entry_id === entryId)?.name
+      ?? this._radios.find((r) => r.entry_id === entryId)?.title ?? 'Unknown radio';
+  }
+
+  private _connected(entryId: string | undefined): boolean {
+    const radios = bbsState.snapshot?.radios;
+    return !entryId || !radios || radios.some((r) => r.entry_id === entryId);
+  }
+
+  /** Channels of the bot's radio (channel numbers differ between radios). */
+  private async _loadChannels() {
+    if (!this.hass) return;
+    const radio = this._botRadio;
+    this._channelsRadio = radio;
+    const channels = await getChannels(this.hass, radio);
+    if (radio !== this._channelsRadio) return; // radio changed meanwhile
+    this._channels = [...channels].sort((a, b) => a.channel_idx - b.channel_idx);
+    if (!this._channels.some((c) => c.channel_idx === this._selected)) {
+      this._selected = this._channels.length ? this._channels[0].channel_idx : null;
+    }
+  }
+
+  private _setRadio(value: string) {
+    this._update((c) => { c.radio_entry_id = value; });
+    void this._loadChannels();
+  }
+
+  private _renderRadio(cfg: BotConfig, admin: boolean) {
+    const chosen = cfg.radio_entry_id || '';
+    const connected = bbsState.snapshot?.radios ?? [];
+    const others = this._radios.filter((r) => !connected.some((c) => c.entry_id === r.entry_id));
+    const listed = new Set([...connected.map((r) => r.entry_id), ...others.map((r) => r.entry_id)]);
+    const bbsName = this._radioName(bbsState.bbsRadio ?? undefined);
+    const radio = this._botRadio;
+    return html`
+      <div style="margin-bottom: 12px;">
+        <label class="small">Radio for the bot</label>
+        <select .value=${chosen} ?disabled=${!admin} style="min-width: 260px"
+          @change=${(e: Event) => this._setRadio((e.target as HTMLSelectElement).value)}>
+          <option value="" ?selected=${!chosen}>Same as the BBS${bbsName ? ` (${bbsName})` : ''}</option>
+          ${chosen && !listed.has(chosen) ? html`<option value=${chosen} ?selected=${true}>Chosen radio — not found</option>` : nothing}
+          ${connected.map((r) => html`<option value=${r.entry_id} ?selected=${chosen === r.entry_id}>${r.name}</option>`)}
+          ${others.map((r) => html`<option value=${r.entry_id} ?selected=${chosen === r.entry_id}>${r.title} — not connected</option>`)}
+        </select>
+        <div class="msg" style="margin-top: 4px;">
+          The bot answers only messages received by this radio and replies through it.
+          ${!this._connected(radio)
+            ? html`<span class="err">${this._radioName(radio)} is not connected: the bot is paused until it comes back.</span>`
+            : nothing}
+        </div>
+      </div>`;
   }
 
   private _rules(idx: number): BotRule[] {
@@ -145,7 +213,6 @@ export class BotSettings extends LitElement {
   }
 
   render() {
-    if (!bbsState.active) return nothing;
     const cfg = this._config;
     if (!cfg) {
       return html`<div class="card"><div class="card-title">Bot</div>
@@ -166,10 +233,11 @@ export class BotSettings extends LitElement {
         </div>
         <p class="sub">
           Automatic replies on channels. Pick a channel and add commands: when someone sends a matching
-          message on that channel, the bot replies there with the route the message took
-          (repeaters, SNR, RSSI, reception time). Case doesn't matter; the bot never answers itself
-          and answers each sender at most once per cooldown.
+          message on that channel, the bot replies there with the route the message took — as one line
+          (repeaters, SNR, RSSI, reception time) or as the list of repeaters with their names.
+          Case doesn't matter; the bot never answers itself and answers each sender at most once per cooldown.
         </p>
+        ${this._renderRadio(cfg, admin)}
         <div>
           <label class="small">Cooldown per sender (seconds)</label>
           <input type="number" min="0" max="3600" style="width: 120px" .value=${String(cfg.cooldown)} ?disabled=${!admin}
@@ -199,8 +267,11 @@ export class BotSettings extends LitElement {
                 ${(Object.keys(MATCH_LABELS) as BotMatch[]).map((m) =>
                   html`<option value=${m} ?selected=${r.match === m}>${MATCH_LABELS[m]}</option>`)}
               </select>
-              <select .value=${r.action} ?disabled=${!admin}>
-                <option value="route_reply" selected>Reply with route</option>
+              <select .value=${r.action} ?disabled=${!admin}
+                @change=${(e: Event) => this._editRules(sel, (rs) => rs.map((x, j) => j === i
+                  ? { ...x, action: (e.target as HTMLSelectElement).value as BotAction } : x))}>
+                ${(Object.keys(ACTION_LABELS) as BotAction[]).map((a) =>
+                  html`<option value=${a} ?selected=${r.action === a}>${ACTION_LABELS[a]}</option>`)}
               </select>
               <label class="check"><input type="checkbox" .checked=${r.enabled} ?disabled=${!admin}
                 @change=${(e: Event) => this._editRules(sel, (rs) => rs.map((x, j) => j === i
@@ -213,7 +284,12 @@ export class BotSettings extends LitElement {
               @click=${() => this._editRules(sel, (rs) => [...rs,
                 { trigger: '', match: 'exact', action: 'route_reply', enabled: true }])}>+ Add command</button>
           </div>
-          <div class="example">Reply example: @[Alfa 10] | 9a92,86a8,146c (3 hops) | SNR: -9.25 dB | RSSI: -122 dBm | Received at: 14:56:15</div>
+          <div class="example"><b>Reply with route:</b> @[Alfa 10] | 9a92,86a8,146c (3 hops) | SNR: -9.25 dB | RSSI: -122 dBm | Received at: 14:56:15</div>
+          <div class="example" style="white-space: pre-line"><b>Path with repeater names</b> (names from the radio's contacts, Unknown if not found):
+@[Alfa 10] 3 hops
+9A92: Cesura90 Repeater
+86A8: Unknown
+146C: Feltre Repeater</div>
         ` : nothing}
 
         ${admin ? html`

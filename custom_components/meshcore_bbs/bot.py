@@ -2,10 +2,23 @@
 
 Rules are configured per channel in the panel (Settings → Bot). When an
 incoming channel message matches a rule's command, the bot runs the
-rule's action on that channel. For now the only action is ``route_reply``
-— the panel-Reply line with the path, SNR, RSSI and reception time::
+rule's action on that channel:
+
+``route_reply`` — the panel-Reply line with the path, SNR, RSSI and time::
 
     @[Alfa 10] | 9a92,86a8,146c (3 hops) | SNR: -9.25 dB | RSSI: -122 dBm | Received at: 14:56:15
+
+``path_names`` — one line per repeater of the path, with its name from
+the radio's contacts (``Unknown`` when not found)::
+
+    @[Alfa 10] 3 hops
+    9A92: Cesura90 Repeater
+    86A8: Unknown
+    146C: Feltre Repeater
+
+The bot runs on one radio: the one chosen in its settings, or the BBS
+radio when none is chosen. A chosen radio that is not connected pauses
+the bot rather than moving it to another radio.
 
 Safety: the bot is off by default, never reacts to our own (outgoing)
 messages, and answers each sender at most once per ``cooldown`` seconds
@@ -34,12 +47,69 @@ STORAGE_KEY_BOT = "meshcore_bbs.bot"
 EVENT_BOT_UPDATED = "meshcore_bbs_bot_updated"
 
 MATCH_TYPES = ("exact", "starts_with", "contains")
-ACTIONS = ("route_reply",)
+ACTIONS = ("route_reply", "path_names")
 DEFAULT_COOLDOWN = 30
+# Longest channel message the bot sends; longer replies are split by line.
+MAX_MESSAGE_LEN = 140
+CONFIG_KEYS = ("enabled", "cooldown", "channels", "radio_entry_id")
 
 
 def _default_config() -> dict[str, Any]:
-    return {"enabled": False, "cooldown": DEFAULT_COOLDOWN, "channels": {}}
+    return {"enabled": False, "cooldown": DEFAULT_COOLDOWN, "channels": {}, "radio_entry_id": ""}
+
+
+def split_lines(lines: list[str], limit: int = MAX_MESSAGE_LEN) -> list[str]:
+    """Pack lines into as few messages of at most ``limit`` chars as possible."""
+    out: list[str] = []
+    cur = ""
+    for line in lines:
+        line = line[:limit]
+        if cur and len(cur) + 1 + len(line) > limit:
+            out.append(cur)
+            cur = line
+        else:
+            cur = f"{cur}\n{line}" if cur else line
+    if cur:
+        out.append(cur)
+    return out
+
+
+def contact_names(contacts: list[Any]) -> list[tuple[str, str, int | None]]:
+    """[(public key lower, name, type)] from a coordinator's contact list."""
+    out = []
+    for c in contacts or []:
+        if not isinstance(c, dict):
+            continue
+        key = str(c.get("public_key") or c.get("pubkey_prefix") or "").lower()
+        name = str(c.get("adv_name") or c.get("name") or "").strip()
+        if key and name:
+            ctype = c.get("type")
+            out.append((key, name, ctype if isinstance(ctype, int) else None))
+    return out
+
+
+def hop_name(hop: str, names: list[tuple[str, str, int | None]]) -> str:
+    """Name of the node whose key starts with ``hop``; repeaters preferred."""
+    h = hop.lower()
+    matches = [(n, t) for k, n, t in names if k.startswith(h)]
+    if not matches:
+        return "Unknown"
+    for n, t in matches:
+        if t == 2:
+            return n
+    return matches[0][0]
+
+
+def path_names_reply(sender: str, entry: dict[str, Any] | None,
+                     names: list[tuple[str, str, int | None]]) -> list[str]:
+    """``path_names`` action: header plus one ``CODE: name`` line per hop."""
+    nodes = [str(h) for h in ((entry or {}).get("path_nodes") or [])]
+    if not nodes:
+        return [f"@[{sender}] direct (0 hops)"]
+    n = len(nodes)
+    lines = [f"@[{sender}] {n} hop{'s' if n != 1 else ''}"]
+    lines += [f"{h.upper()}: {hop_name(h, names)}" for h in nodes]
+    return split_lines(lines)
 
 
 def rule_matches(rule: dict[str, Any], text: str) -> bool:
@@ -70,7 +140,7 @@ class ChannelBot:
         stored = await self._store.async_load()
         cfg = _default_config()
         if isinstance(stored, dict):
-            cfg.update({k: stored[k] for k in ("enabled", "cooldown", "channels") if k in stored})
+            cfg.update({k: stored[k] for k in CONFIG_KEYS if k in stored})
         self.config = cfg
 
     def set_config(self, new: dict[str, Any]) -> dict[str, Any]:
@@ -96,10 +166,12 @@ class ChannelBot:
                 })
             channels[str(int(idx))] = {"name": str(ch.get("name", ""))[:64], "rules": rules}
         cooldown = int(new.get("cooldown", self.config.get("cooldown", DEFAULT_COOLDOWN)))
+        radio = new.get("radio_entry_id", self.config.get("radio_entry_id", ""))
         self.config = {
             "enabled": bool(new.get("enabled", False)),
             "cooldown": min(max(cooldown, 0), 3600),
             "channels": channels,
+            "radio_entry_id": str(radio or "")[:64],
         }
         self._store.async_delay_save(lambda: self.config, 1.0)
         self.hass.bus.async_fire(EVENT_BOT_UPDATED, {})
@@ -123,10 +195,8 @@ class ChannelBot:
         channel = self.config["channels"].get(str(channel_idx))
         if not channel:
             return
-        # Same radio as the BBS: only its messages, replies through it.
-        bbs = self.hass.data.get(DOMAIN, {}).get("bbs")
-        configured = bbs.settings.get("radio_entry_id") if bbs is not None else None
-        handle, entry_id = handles_message(self.hass, configured or None, data)
+        # Only messages of the bot's radio, replies through it.
+        handle, entry_id = handles_message(self.hass, self.configured_radio(), data)
         if not handle:
             return
         text = str(data.get("message") or data.get("text") or "")
@@ -142,32 +212,59 @@ class ChannelBot:
             return
         self._last_reply[key] = now
 
-        reply = self._run_action(rule["action"], sender, data)
-        if not reply:
+        replies = self._run_action(rule["action"], sender, data, entry_id)
+        if not replies:
             return
-        payload: dict[str, Any] = {"channel_idx": channel_idx, "message": reply}
-        if entry_id:
-            payload["entry_id"] = entry_id
+        scope = None
         scopes = self.hass.data.get(DOMAIN, {}).get("channel_scopes")
         if entry_id and scopes is not None:
             scope = scopes.get(entry_id, channel_idx)
+        for reply in replies:
+            payload: dict[str, Any] = {"channel_idx": channel_idx, "message": reply}
+            if entry_id:
+                payload["entry_id"] = entry_id
             if scope:
                 payload["scope"] = scope
-        try:
-            await self.hass.services.async_call(
-                MESHCORE_DOMAIN, "send_channel_message", payload, blocking=True
-            )
-            _LOGGER.debug("Bot replied on channel %s to %s: %s", channel_idx, sender, reply)
-        except Exception as err:
-            _LOGGER.warning("Bot reply on channel %s failed: %s", channel_idx, err)
+            try:
+                await self.hass.services.async_call(
+                    MESHCORE_DOMAIN, "send_channel_message", payload, blocking=True
+                )
+                _LOGGER.debug("Bot replied on channel %s to %s: %s", channel_idx, sender, reply)
+            except Exception as err:
+                _LOGGER.warning("Bot reply on channel %s failed: %s", channel_idx, err)
+                return
 
-    def _run_action(self, action: str, sender: str, data: dict[str, Any]) -> str | None:
+    def configured_radio(self) -> str | None:
+        """The radio chosen for the bot, else the one chosen for the BBS."""
+        own = self.config.get("radio_entry_id")
+        if own:
+            return own
+        bbs = self.hass.data.get(DOMAIN, {}).get("bbs")
+        return (bbs.settings.get("radio_entry_id") if bbs is not None else None) or None
+
+    def _names(self, entry_id: str | None) -> list[tuple[str, str, int | None]]:
+        """Contact names of the bot's radio, to resolve path hop codes."""
+        coords = self.hass.data.get(MESHCORE_DOMAIN) or {}
+        coord = coords.get(entry_id) if entry_id else next(iter(coords.values()), None)
+        get_all = getattr(coord, "get_all_contacts", None)
+        if not callable(get_all):
+            return []
+        try:
+            return contact_names(get_all())
+        except Exception:  # pragma: no cover - defensive
+            return []
+
+    def _run_action(self, action: str, sender: str, data: dict[str, Any],
+                    entry_id: str | None = None) -> list[str]:
+        rx = copy.deepcopy(data.get("rx_log_data") or [])
+        if rx:
+            enrich_rx_log_entries(rx)
+        first = rx[0] if rx else None
         if action == "route_reply":
-            rx = copy.deepcopy(data.get("rx_log_data") or [])
-            if rx:
-                enrich_rx_log_entries(rx)
-            return route_reply(sender, rx[0] if rx else None)
-        return None
+            return [route_reply(sender, first)]
+        if action == "path_names":
+            return path_names_reply(sender, first, self._names(entry_id))
+        return []
 
 
 # ─── WebSocket API ──────────────────────────────────────────────────────

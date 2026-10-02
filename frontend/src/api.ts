@@ -1085,7 +1085,7 @@ export function requestTelemetry(
 // ─── Channel bot ─────────────────────────────────────────────────────────
 
 export type BotMatch = 'exact' | 'starts_with' | 'contains';
-export type BotAction = 'route_reply';
+export type BotAction = 'route_reply' | 'path_names';
 
 export interface BotRule {
   trigger: string;
@@ -1098,6 +1098,8 @@ export interface BotConfig {
   enabled: boolean;
   cooldown: number;
   channels: Record<string, { name: string; rules: BotRule[] }>;
+  /** Radio the bot runs on; "" = the BBS radio. */
+  radio_entry_id?: string;
 }
 
 export function getBotConfig(hass: HomeAssistant): Promise<BotConfig> {
