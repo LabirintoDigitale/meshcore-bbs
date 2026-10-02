@@ -4,6 +4,12 @@ All notable changes to **MeshCore BBS for Home Assistant** are documented here. 
 
 ## [Unreleased]
 
+## [0.8.9] - 2026-10-02
+
+### Added
+
+- **RSSI in the Trace result.** The trace answer only carries SNR, which tops out around +12 dB on any good link and so cannot tell a healthy antenna from a lossy one at short range. Right after a trace the panel asks the radio for the RSSI of the last packet it received (the trace echo, via `get_stats_radio`) and shows it as *RSSI (at this device)*.
+
 ## [0.8.8] - 2026-10-02
 
 ### Fixed

@@ -462,6 +462,23 @@ export interface TraceResult {
    * device and has no `hash` — its SNR is also surfaced as `final_snr`.
    */
   path: Array<{ hash?: string; snr: number }>;
+  /**
+   * Signal strength (dBm) of the last packet this device received, read
+   * from the radio right after the trace — normally the trace echo. SNR
+   * saturates around +12 dB on strong links; RSSI does not. Absent when
+   * the radio could not be asked.
+   */
+  final_rssi?: number;
+}
+
+/** ``last_rssi`` from a ``get_stats_radio`` response, if any. */
+export function lastRssiFrom(response: string): number | undefined {
+  try {
+    const v = (JSON.parse(response) as Record<string, unknown>)?.last_rssi;
+    return typeof v === 'number' && Number.isFinite(v) ? v : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /**

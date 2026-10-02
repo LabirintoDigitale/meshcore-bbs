@@ -4,7 +4,7 @@ import type { HomeAssistant, PanelConfig, Contact, Channel, MeshCoreDevice } fro
 import type { TraceResult } from './api';
 import { panelStyles } from './styles';
 import { MESHCORE_PRESET, DEFAULT_PANEL_CONFIG } from './constants';
-import { getDevices, getRadioEntries, type RadioEntry, getContacts, getChannels, getUnreadAndLastRead, markConversationRead, removeContact, addContact, traceContact, type TracePathMode } from './api';
+import { getDevices, getRadioEntries, type RadioEntry, getContacts, getChannels, getUnreadAndLastRead, markConversationRead, removeContact, addContact, traceContact, executeLocal, lastRssiFrom, type TracePathMode } from './api';
 import { UnreadController } from './chat/unread-controller';
 import './pages/chat-page';
 import './pages/devices-page';
@@ -1270,6 +1270,16 @@ export class MeshCorePanel extends LitElement {
         pathMode,
         path,
       );
+      // The trace answer carries SNR only, which tops out around +12 dB on
+      // good links. Ask the radio for the RSSI of the last packet it
+      // received — the trace echo, read right away.
+      try {
+        const stats = await executeLocal(this.hass, 'get_stats_radio', undefined, this._traceDialogEntryId);
+        const rssi = stats.success ? lastRssiFrom(stats.response) : undefined;
+        if (rssi !== undefined) result.final_rssi = rssi;
+      } catch {
+        // RSSI is a bonus; the trace result stands without it.
+      }
       this._traceDialogResult = result;
     } catch (err: any) {
       // hass.callWS rejects with a plain object like { code, message };

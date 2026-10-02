@@ -822,6 +822,15 @@ export class TraceDialog extends LitElement {
           `
         : html``}
 
+      ${typeof result.final_rssi === 'number'
+        ? html`
+            <div class="info-item">
+              <div class="info-label">RSSI (at this device)</div>
+              <div class="info-value">${result.final_rssi} dBm</div>
+            </div>
+          `
+        : html``}
+
       ${intermediateHops.length > 0
         ? html`
             <div class="info-item">
