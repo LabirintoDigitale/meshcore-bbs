@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import inspect
 import json
 import logging
 import os
@@ -1443,6 +1444,9 @@ def _format_event_response(result) -> str:
     if result is None:
         return "OK"
 
+    if isinstance(result, (dict, list)):
+        # *_sync helpers return the decoded payload itself, not an Event.
+        return json.dumps(result, default=_json_safe)
     if not hasattr(result, 'payload'):
         return str(result) if result else "OK"
 
@@ -1462,6 +1466,47 @@ def _format_event_response(result) -> str:
 
 # ─── meshcore/execute_local ─────────────────────────────────────────────
 # Execute a Python library command on the companion
+
+
+
+def _resolve_contact_arg(mesh_core, value: str) -> dict | None:
+    """The radio's contact for a panel ``contact`` argument.
+
+    The panel lets the user type a name, a key prefix or a full key; the
+    SDK wants the contact itself (or the full 64-hex key), so a name like
+    "Galileo RPT2" used to fail with an invalid-destination error.
+    """
+    text = value.strip()
+    if not text:
+        return None
+    is_hex = all(ch in "0123456789abcdefABCDEF" for ch in text)
+    lookups = ("get_contact_by_key_prefix", "get_contact_by_name") if is_hex and len(text) >= 6         else ("get_contact_by_name", "get_contact_by_key_prefix")
+    for name in lookups:
+        fn = getattr(mesh_core, name, None)
+        if callable(fn):
+            found = fn(text)
+            if isinstance(found, dict):
+                return found
+    return None
+
+
+async def _call_sdk_command(method, args: dict):
+    """Call an SDK command with the panel's argument names.
+
+    The panel's command catalogue names arguments for the user (``contact``,
+    ``message``, ``command``, ``password``) while the SDK methods use their
+    own (``dst``/``key``, ``msg``, ``cmd``, ``pwd``). Keyword arguments the
+    method knows are passed as such; otherwise all arguments go positionally,
+    in the order the panel lists them, which matches the SDK's order.
+    """
+    try:
+        params = inspect.signature(method).parameters
+    except (TypeError, ValueError):
+        return await method(**args)
+    accepts_any = any(p.kind is inspect.Parameter.VAR_KEYWORD for p in params.values())
+    if accepts_any or all(k in params for k in args):
+        return await method(**args)
+    return await method(*args.values())
 
 
 @websocket_api.websocket_command(
@@ -1505,8 +1550,26 @@ async def ws_execute_local(hass, connection, msg):
             )
             return
 
+        # Name / key prefix → the radio's contact (only added contacts).
+        if isinstance(args.get("contact"), str):
+            raw = args["contact"]
+            if not raw.strip():
+                args = {k: v for k, v in args.items() if k != "contact"}
+            else:
+                contact = _resolve_contact_arg(coordinator.api.mesh_core, raw)
+                if contact is None:
+                    connection.send_error(
+                        msg["id"], "not_found",
+                        f"Contact not found on the radio: {raw} (use an added contact's name or key)",
+                    )
+                    return
+                args = {**args, "contact": contact}
+
         # Execute the command with provided args
-        response = await command_method(**args)
+        response = await _call_sdk_command(command_method, args)
+        if response is None and command.endswith("_sync"):
+            connection.send_error(msg["id"], "timeout", "No response from the node (timed out)")
+            return
         timestamp = datetime.now().isoformat()
 
         # Extract meaningful text from Event objects

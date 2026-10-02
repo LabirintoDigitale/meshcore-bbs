@@ -4,6 +4,12 @@ All notable changes to **MeshCore BBS for Home Assistant** are documented here. 
 
 ## [Unreleased]
 
+## [0.8.11] - 2026-10-02
+
+### Fixed
+
+- **Issue Command: commands that take a contact always failed.** The typed name or key prefix was handed to the SDK as is, which needs the contact itself or the full 64-hex key; and several SDK methods name their arguments differently from the panel (`dst`/`key`, `msg`, `cmd`, `pwd`). The contact is now looked up on the radio by name or key prefix, arguments are passed the way each SDK method expects, `*_sync` requests that get no answer report a timeout instead of "OK", and their payload is shown as JSON. `req_status_sync` on a repeater now returns its `noise_floor`, `last_rssi`, counters and the rest.
+
 ## [0.8.10] - 2026-10-02
 
 ### Fixed

@@ -22,6 +22,7 @@ load altogether.
 """
 from __future__ import annotations
 
+import json
 import asyncio
 import enum
 import sys
@@ -3908,3 +3909,67 @@ async def test_contacts_take_route_from_the_radio(
     assert tom["adv_name"] == "Tom-D" and tom["lastmod"] == 999
     assert oth == other
     assert advert_copy["out_path_len"] == -1  # upstream's dict is not mutated
+
+
+RPT2 = {"public_key": "5097b18c550d" + "00" * 26, "adv_name": "Galileo RPT2", "type": 2}
+
+
+def _contacts_by(coordinator: MagicMock) -> None:
+    mc = coordinator.api.mesh_core
+    mc.get_contact_by_name = lambda n: RPT2 if n.lower() == "galileo rpt2" else None
+    mc.get_contact_by_key_prefix = lambda p: RPT2 if RPT2["public_key"].startswith(p.lower()) else None
+
+
+async def test_execute_local_resolves_contact_by_name(
+    hass: HomeAssistant, coordinator: MagicMock
+) -> None:
+    """req_status_sync with a typed name reaches the SDK as the contact dict."""
+    _contacts_by(coordinator)
+    seen = {}
+
+    async def req_status_sync(contact, timeout=0, min_timeout=0):
+        seen["contact"] = contact
+        return {"noise_floor": -117, "last_rssi": -63}
+
+    coordinator.api.mesh_core.commands.req_status_sync = req_status_sync
+    conn = _Connection()
+    await _call_ws(ws_api.ws_execute_local, hass, conn,
+                   {"id": 1, "command": "req_status_sync", "args": {"contact": "Galileo RPT2"}})
+    assert seen["contact"] is RPT2
+    assert json.loads(conn.results[0][1]["response"])["noise_floor"] == -117
+
+
+async def test_execute_local_maps_panel_names_to_sdk_positions(
+    hass: HomeAssistant, coordinator: MagicMock
+) -> None:
+    """send_msg(dst, msg): the panel's contact/message go positionally."""
+    _contacts_by(coordinator)
+    seen = {}
+
+    async def send_msg(dst, msg, timestamp=None, attempt=0):
+        seen.update(dst=dst, msg=msg)
+        return MagicMock(payload={"expected_ack": b"\x01"})
+
+    coordinator.api.mesh_core.commands.send_msg = send_msg
+    conn = _Connection()
+    await _call_ws(ws_api.ws_execute_local, hass, conn,
+                   {"id": 1, "command": "send_msg", "args": {"contact": "5097b18c", "message": "ciao"}})
+    assert seen == {"dst": RPT2, "msg": "ciao"}
+    assert conn.results[0][1]["success"] is True
+
+
+async def test_execute_local_unknown_contact_and_timeout(
+    hass: HomeAssistant, coordinator: MagicMock
+) -> None:
+    _contacts_by(coordinator)
+
+    async def req_status_sync(contact, timeout=0, min_timeout=0):
+        return None
+
+    coordinator.api.mesh_core.commands.req_status_sync = req_status_sync
+    conn = _Connection()
+    await _call_ws(ws_api.ws_execute_local, hass, conn,
+                   {"id": 1, "command": "req_status_sync", "args": {"contact": "Nessuno"}})
+    await _call_ws(ws_api.ws_execute_local, hass, conn,
+                   {"id": 2, "command": "req_status_sync", "args": {"contact": "Galileo RPT2"}})
+    assert [e[1] for e in conn.errors] == ["not_found", "timeout"]
