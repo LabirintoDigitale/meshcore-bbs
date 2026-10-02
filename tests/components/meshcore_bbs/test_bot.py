@@ -22,9 +22,13 @@ from custom_components.meshcore_bbs.const import DOMAIN, MESHCORE_DOMAIN
 RX = [{"path": "9a9286a8146c", "path_hash_size": 2, "snr": -9.25, "rssi": -122}]
 
 
+SLOT_NAMES = {0: "Public", 1: "#test", 3: "#path"}
+
+
 def _msg(text: str, channel_idx: int = 3, **extra: Any) -> SimpleNamespace:
     return SimpleNamespace(data={
         "message_type": "channel", "channel_idx": channel_idx, "sender_name": "Alfa 10",
+        "channel": SLOT_NAMES.get(channel_idx, str(channel_idx)),
         "message": text, "outgoing": False, "rx_log_data": RX, **extra,
     })
 
@@ -99,14 +103,14 @@ async def test_without_route_data_and_with_scope(hass: HomeAssistant, bot: Chann
 
 
 async def test_config_validation_and_persistence(hass: HomeAssistant, bot: ChannelBot) -> None:
-    assert len(bot.config["channels"]["1"]["rules"]) == 1
+    assert len(bot.config["channels"]["#test"]["rules"]) == 1
     with pytest.raises(ValueError):
-        bot.set_config({"channels": {"1": {"rules": [{"trigger": "x", "action": "explode"}]}}})
+        bot.set_config({"channels": {"#test": {"name": "#test", "rules": [{"trigger": "x", "action": "explode"}]}}})
     await bot.async_flush()
     fresh = ChannelBot(hass)
     await fresh.async_load()
     assert fresh.config["enabled"] is True
-    assert fresh.config["channels"]["3"]["rules"][0]["trigger"] == "path"
+    assert fresh.config["channels"]["#path"]["rules"][0]["trigger"] == "path"
 
 
 async def test_ws_get_and_set(hass: HomeAssistant, hass_ws_client, bot: ChannelBot) -> None:
@@ -196,3 +200,39 @@ async def test_radio_choice_is_saved(hass: HomeAssistant, bot: ChannelBot) -> No
     assert fresh.config["radio_entry_id"] == "BASE"
     fresh.set_config({**fresh.config, "radio_entry_id": ""})
     assert fresh.configured_radio() is None
+
+
+# ─── rules follow the channel name, not the slot ───────────────────────
+
+
+async def test_rules_follow_the_channel_name_across_radios(hass: HomeAssistant, bot: ChannelBot) -> None:
+    """#test is slot 1 on Base Galileo and slot 5 on Galileo: same rules on both."""
+    calls = async_mock_service(hass, MESHCORE_DOMAIN, "send_channel_message")
+    hass.data[MESHCORE_DOMAIN] = {"BASE": SimpleNamespace(pubkey="a77aae" + "00" * 29, name="Base")}
+    bot.set_config({**bot.config, "cooldown": 0})
+    # Slot 3 now holds #test on this radio: the #path rule must not fire
+    await bot.async_handle_event(_msg("path", channel_idx=3, channel="#test"))
+    assert calls == []
+    await bot.async_handle_event(_msg("test", channel_idx=5, channel="#test"))
+    assert calls[0].data["channel_idx"] == 5  # replies in the slot it was heard on
+
+
+async def test_channel_name_from_the_radio_when_the_event_has_none(hass: HomeAssistant, bot: ChannelBot) -> None:
+    calls = async_mock_service(hass, MESHCORE_DOMAIN, "send_channel_message")
+    hass.data[MESHCORE_DOMAIN] = {"BASE": SimpleNamespace(
+        pubkey="a77aae" + "00" * 29, name="Base", _channel_info={7: {"channel_name": "#path"}})}
+    await bot.async_handle_event(_msg("path", channel_idx=7, channel=""))
+    assert calls[0].data["channel_idx"] == 7
+
+
+async def test_old_slot_keyed_config_is_rekeyed_by_name(hass: HomeAssistant) -> None:
+    store = ChannelBot(hass)._store
+    await store.async_save({"enabled": True, "cooldown": 30, "channels": {
+        "5": {"name": "#Test", "rules": [{"trigger": "t", "match": "exact", "action": "route_reply"}]},
+        "1": {"name": "#test", "rules": [{"trigger": "u", "match": "exact", "action": "route_reply"}]},
+        "2": {"name": "", "rules": []},
+    }})
+    fresh = ChannelBot(hass)
+    await fresh.async_load()
+    assert set(fresh.config["channels"]) == {"#test", "2"}
+    assert [r["trigger"] for r in fresh.config["channels"]["#test"]["rules"]] == ["t", "u"]

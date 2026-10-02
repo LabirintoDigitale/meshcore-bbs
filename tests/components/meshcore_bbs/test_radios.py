@@ -98,7 +98,7 @@ async def test_bot_follows_the_bbs_radio(hass: HomeAssistant, bbs: Bbs) -> None:
         {"trigger": "test", "match": "exact", "action": "route_reply"}]}}})
 
     def msg(radio: str) -> SimpleNamespace:
-        return SimpleNamespace(data={"message_type": "channel", "channel_idx": 1, "sender_name": "X",
+        return SimpleNamespace(data={"message_type": "channel", "channel_idx": 1, "channel": "#test", "sender_name": "X",
                                      "message": "test", "entity_id": f"binary_sensor.meshcore_{radio}_ch_1_messages"})
 
     await bot.async_handle_event(msg("1d71d9"))

@@ -19,7 +19,7 @@ const RADIOS = [
 
 function makeWS(config: Record<string, unknown> = {
   enabled: false, cooldown: 30,
-  channels: { '3': { name: '#path', rules: [{ trigger: 'path', match: 'exact', action: 'route_reply', enabled: true }] } },
+  channels: { '#path': { name: '#path', rules: [{ trigger: 'path', match: 'exact', action: 'route_reply', enabled: true }] } },
 }) {
   return vi.fn(async (msg: Record<string, unknown>) => {
     if (msg.type === 'meshcore_bbs/bot_get') return config;
@@ -71,8 +71,8 @@ describe('meshcore-bot-settings', () => {
     const sent = (callWS.mock.calls.find((c) => c[0].type === 'meshcore_bbs/bot_set')![0] as {
       config: { channels: Record<string, { rules: Array<{ trigger: string }> }> };
     }).config;
-    expect(sent.channels['1']).toEqual({ name: '#test', rules: [{ trigger: 'Test', match: 'exact', action: 'route_reply', enabled: true }] });
-    expect(sent.channels['3'].rules[0].trigger).toBe('path');
+    expect(sent.channels['#test']).toEqual({ name: '#test', rules: [{ trigger: 'Test', match: 'exact', action: 'route_reply', enabled: true }] });
+    expect(sent.channels['#path'].rules[0].trigger).toBe('path');
     await vi.waitFor(() => expect(text(el)).toContain('Saved.'));
   });
 

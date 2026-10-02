@@ -4,7 +4,11 @@ All notable changes to **MeshCore BBS for Home Assistant** are documented here. 
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-10-02
+
 ### Fixed
+
+- **Bot rules attached to the slot instead of the channel.** Rules were stored per channel slot, so on a radio where the slots differ (#test in slot 1 instead of 5) a channel showed and ran another channel's commands. Rules are now keyed by channel name and match incoming messages by the channel they arrived on (the reply still goes to that radio's slot). Existing configurations are re-keyed by name on load.
 
 - **Channel history attached to the wrong channel with several radios.** Channel conversations were stored by radio + *slot* (`…_ch_<slot>_messages`). Slots are local to each companion and change when channels are reordered or recreated, so a slot's old messages showed up under whichever channel took the slot (e.g. old #path messages in #test), and history did not follow a channel to its new slot. Channel history is now stored per radio + channel identity (hash of the channel key, or its name when the key is unknown); live events, which upstream still sends with the slot id, are translated on arrival. `get_channels` gives the panel each channel's `conversation_id`, which it uses to load history, count unreads and mark read — without requiring the upstream `_ch_N_messages` entity to exist.
 

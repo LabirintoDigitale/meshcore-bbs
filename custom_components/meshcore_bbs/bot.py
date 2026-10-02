@@ -60,6 +60,29 @@ def _default_config() -> dict[str, Any]:
     return {"enabled": False, "cooldown": DEFAULT_COOLDOWN, "channels": {}, "radio_entry_id": ""}
 
 
+def channel_key(name: Any) -> str:
+    """Bot rules are keyed by channel name, not slot: slots differ per radio."""
+    return str(name or "").strip().lower()
+
+
+def _rekey_channels(channels: Any) -> dict[str, Any]:
+    """Key channel rules by name (older configs used the slot number).
+
+    Entries without a name keep their old key; two entries for the same
+    name are merged.
+    """
+    out: dict[str, Any] = {}
+    for old_key, ch in (channels or {}).items():
+        if not isinstance(ch, dict):
+            continue
+        key = channel_key(ch.get("name")) or str(old_key)
+        if key in out:
+            out[key]["rules"] = out[key].get("rules", []) + list(ch.get("rules") or [])
+        else:
+            out[key] = {"name": ch.get("name", ""), "rules": list(ch.get("rules") or [])}
+    return out
+
+
 def contact_names(contacts: list[Any]) -> list[tuple[str, str, int | None]]:
     """[(public key lower, name, type)] from a coordinator's contact list."""
     out = []
@@ -127,12 +150,13 @@ class ChannelBot:
         cfg = _default_config()
         if isinstance(stored, dict):
             cfg.update({k: stored[k] for k in CONFIG_KEYS if k in stored})
+        cfg["channels"] = _rekey_channels(cfg.get("channels"))
         self.config = cfg
 
     def set_config(self, new: dict[str, Any]) -> dict[str, Any]:
         """Validate and replace the configuration."""
         channels: dict[str, Any] = {}
-        for idx, ch in (new.get("channels") or {}).items():
+        for idx, ch in _rekey_channels(new.get("channels")).items():
             rules = []
             for r in ch.get("rules") or []:
                 trigger = str(r.get("trigger", "")).strip()
@@ -150,7 +174,7 @@ class ChannelBot:
                     "action": action,
                     "enabled": bool(r.get("enabled", True)),
                 })
-            channels[str(int(idx))] = {"name": str(ch.get("name", ""))[:64], "rules": rules}
+            channels[idx[:64]] = {"name": str(ch.get("name", ""))[:64], "rules": rules}
         cooldown = int(new.get("cooldown", self.config.get("cooldown", DEFAULT_COOLDOWN)))
         radio = new.get("radio_entry_id", self.config.get("radio_entry_id", ""))
         self.config = {
@@ -178,12 +202,17 @@ class ChannelBot:
         channel_idx = data.get("channel_idx")
         if not isinstance(channel_idx, int):
             return
-        channel = self.config["channels"].get(str(channel_idx))
-        if not channel:
-            return
         # Only messages of the bot's radio, replies through it.
         handle, entry_id = handles_message(self.hass, self.configured_radio(), data)
         if not handle:
+            return
+        # Rules belong to the channel name; the slot only says where to reply.
+        channels = self.config["channels"]
+        channel = channels.get(channel_key(data.get("channel") or self._slot_name(entry_id, channel_idx)))
+        if channel is None:
+            legacy = channels.get(str(channel_idx))
+            channel = legacy if legacy is not None and not legacy.get("name") else None
+        if not channel:
             return
         text = str(data.get("message") or data.get("text") or "")
         rule = next((r for r in channel.get("rules", []) if rule_matches(r, text)), None)
@@ -219,6 +248,14 @@ class ChannelBot:
             except Exception as err:
                 _LOGGER.warning("Bot reply on channel %s failed: %s", channel_idx, err)
                 return
+
+    def _slot_name(self, entry_id: str | None, slot: int) -> str:
+        """Name of the channel in ``slot`` on the bot's radio (events may omit it)."""
+        coords = self.hass.data.get(MESHCORE_DOMAIN) or {}
+        coord = coords.get(entry_id) if entry_id else next(iter(coords.values()), None)
+        table = getattr(coord, "_channel_info", None)
+        info = table.get(slot) if isinstance(table, dict) else None
+        return str((info or {}).get("channel_name") or "")
 
     def configured_radio(self) -> str | None:
         """The radio chosen for the bot, else the one chosen for the BBS."""

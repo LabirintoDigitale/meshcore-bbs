@@ -174,8 +174,13 @@ export class BotSettings extends LitElement {
       </div>`;
   }
 
+  /** Rules are keyed by channel name (slots differ between radios). */
+  private _key(idx: number): string {
+    return (this._channels.find((c) => c.channel_idx === idx)?.name ?? String(idx)).trim().toLowerCase();
+  }
+
   private _rules(idx: number): BotRule[] {
-    return this._config?.channels[String(idx)]?.rules ?? [];
+    return this._config?.channels[this._key(idx)]?.rules ?? [];
   }
 
   private _update(mutator: (cfg: BotConfig) => void) {
@@ -190,10 +195,10 @@ export class BotSettings extends LitElement {
   private _editRules(idx: number, edit: (rules: BotRule[]) => BotRule[]) {
     const name = this._channels.find((c) => c.channel_idx === idx)?.name ?? '';
     this._update((cfg) => {
-      const ch = cfg.channels[String(idx)] ?? { name, rules: [] };
+      const ch = cfg.channels[this._key(idx)] ?? { name, rules: [] };
       ch.name = name;
       ch.rules = edit(ch.rules);
-      cfg.channels[String(idx)] = ch;
+      cfg.channels[this._key(idx)] = ch;
     });
   }
 
