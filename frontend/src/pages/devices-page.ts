@@ -2,7 +2,7 @@ import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { panelStyles } from '../styles';
 import type { HomeAssistant, PanelConfig, ManagedDevice, MeshCoreDevice, NeighborInfo, Contact } from '../types';
-import { getManagedDevices, executeRemote, getNeighbors, getContacts } from '../api';
+import { getManagedDevices, executeRemote, executeLocal, getNeighbors, getContacts } from '../api';
 import '../components/sensor-tile';
 import '../components/node-summary';
 import '../components/snr-chart';
@@ -14,6 +14,25 @@ import { attachDialogA11y } from '../utils/dialog-a11y';
 
 /** How long to wait for a managed device's reply to a CLI command. */
 const REMOTE_REPLY_TIMEOUT_MS = 20000;
+
+/** One line of the values that matter in a node's status response. */
+export function statusSummary(response: string): string {
+  let d: Record<string, unknown>;
+  try {
+    d = JSON.parse(response) as Record<string, unknown>;
+  } catch {
+    return response;
+  }
+  const n = (k: string) => (typeof d[k] === 'number' ? (d[k] as number) : undefined);
+  const parts: string[] = [];
+  if (n('noise_floor') !== undefined) parts.push(`noise ${n('noise_floor')} dBm`);
+  if (n('last_rssi') !== undefined) {
+    parts.push(`last RSSI ${n('last_rssi')} dBm${n('last_snr') !== undefined ? ` / SNR ${n('last_snr')} dB` : ''}`);
+  }
+  if (n('recv_flood') !== undefined) parts.push(`rx flood ${n('recv_flood')} / direct ${n('recv_direct') ?? 0}`);
+  if (n('bat') !== undefined) parts.push(`battery ${((n('bat') as number) / 1000).toFixed(2)} V`);
+  return parts.length ? parts.join(' · ') : 'status received';
+}
 
 @customElement('meshcore-devices-page')
 export class DevicesPage extends LitElement {
@@ -951,6 +970,7 @@ export class DevicesPage extends LitElement {
         <div class="actions-row">
           ${this._renderRemoteButton(device, 'advert', 'Flood Advert', isOnline)}
           ${this._renderRemoteButton(device, 'clock sync', 'Sync Clock', isOnline)}
+          ${this._renderStatusButton(device, isOnline)}
         </div>
       </div>
     `;
@@ -1271,6 +1291,42 @@ export class DevicesPage extends LitElement {
     const busy = this._remoteBusy.has(`${device.pubkey_prefix}:${command}`);
     return html`<button class="action-btn" ?disabled=${!isOnline || busy}
       @click=${() => this._executeRemoteAction(device, command)}>${busy ? 'Sending…' : label}</button>`;
+  }
+
+  private _renderStatusButton(device: ManagedDevice, isOnline: boolean) {
+    const busy = this._remoteBusy.has(`${device.pubkey_prefix}:status`);
+    return html`<button class="action-btn" ?disabled=${!isOnline || busy}
+      title="Ask the node for its status now: noise floor, last RSSI/SNR, packet counters"
+      @click=${() => this._refreshStatus(device)}>${busy ? 'Asking…' : 'Refresh Status'}</button>`;
+  }
+
+  /**
+   * Ask the node for its status right away (instead of waiting for the
+   * periodic poll). The upstream sensors listen to every status response
+   * of this node, so the tiles update by themselves; the toast shows the
+   * values that matter when checking a link.
+   */
+  private async _refreshStatus(device: ManagedDevice) {
+    if (!this.hass) return;
+    const key = `${device.pubkey_prefix}:status`;
+    if (this._remoteBusy.has(key)) return;
+    this._remoteBusy = new Set(this._remoteBusy).add(key);
+    this._showStatusMessage(`${device.name}: asking for status…`, 'success');
+    try {
+      const result = await executeLocal(
+        this.hass, 'req_status_sync', { contact: device.pubkey_prefix }, this.config?.entry_id);
+      if (!result.success) {
+        this._showStatusMessage(`${device.name}: ${result.response || 'no response'}`, 'error');
+        return;
+      }
+      this._showStatusMessage(`${device.name}: ${statusSummary(result.response)}`, 'success');
+    } catch (error) {
+      this._showStatusMessage(`${device.name}: status failed — ${String(error)}`, 'error');
+    } finally {
+      const next = new Set(this._remoteBusy);
+      next.delete(key);
+      this._remoteBusy = next;
+    }
   }
 
   // _executeCompanionAction moved to settings-page.ts

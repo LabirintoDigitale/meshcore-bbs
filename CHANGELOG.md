@@ -4,6 +4,12 @@ All notable changes to **MeshCore BBS for Home Assistant** are documented here. 
 
 ## [Unreleased]
 
+## [0.8.12] - 2026-10-02
+
+### Added
+
+- **Refresh Status button on managed devices** (Devices tab, next to Flood Advert and Sync Clock). Asks the node for its status at once instead of waiting for the periodic poll; the sensor tiles update from the answer and a message shows noise floor, last RSSI/SNR, received flood/direct packets and battery.
+
 ## [0.8.11] - 2026-10-02
 
 ### Fixed
