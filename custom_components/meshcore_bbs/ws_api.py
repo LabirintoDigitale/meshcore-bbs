@@ -278,6 +278,37 @@ def _ws_send_error_safe(
 _LEGACY_CONTACTS_FALLBACK_LOGGED = False
 
 
+_ROUTE_FIELDS = ("out_path", "out_path_len", "out_path_hash_mode")
+
+
+def _device_route_overlay(hass: HomeAssistant, entry_id: str | None, contacts: list) -> list:
+    """Take each added contact's route from the radio's own contact table.
+
+    Upstream's ``get_all_contacts`` merges the radio's contacts with the
+    ones discovered from adverts and keeps whichever copy has the newer
+    ``lastmod``. A repeater that adverts often therefore shows its
+    advert copy — always "flood" — even after a route was saved on the
+    radio. Only the radio's copy carries the stored route.
+    """
+    coordinator = _resolve_coordinator(hass, entry_id)
+    mesh_core = getattr(getattr(coordinator, "api", None), "mesh_core", None)
+    device: dict[str, dict] = {}
+    for table in (getattr(coordinator, "_contacts", None), getattr(mesh_core, "contacts", None)):
+        if isinstance(table, dict):
+            for c in table.values():
+                if isinstance(c, dict) and isinstance(c.get("public_key"), str):
+                    device[c["public_key"]] = c
+    if not device:
+        return contacts
+    out = []
+    for c in contacts:
+        own = device.get(c.get("public_key")) if isinstance(c, dict) else None
+        if own is not None and any(k in own for k in _ROUTE_FIELDS):
+            c = {**c, **{k: own[k] for k in _ROUTE_FIELDS if k in own}}
+        out.append(c)
+    return out
+
+
 async def _get_contacts_via_service(
     hass: HomeAssistant, entry_id: str | None = None
 ) -> list | None:
@@ -308,7 +339,7 @@ async def _get_contacts_via_service(
         coordinator = _get_coordinator(hass, entry_id)
         if not coordinator:
             return None
-        return list(coordinator.get_all_contacts() or [])
+        return _device_route_overlay(hass, entry_id, list(coordinator.get_all_contacts() or []))
 
     service_data: dict = {}
     if entry_id:
@@ -335,7 +366,7 @@ async def _get_contacts_via_service(
     # error string today, so collapse to the existing "not_found" UX.
     if "error" in result and not result.get("contacts"):
         return None
-    return list(result.get("contacts") or [])
+    return _device_route_overlay(hass, entry_id, list(result.get("contacts") or []))
 
 
 def _get_store(

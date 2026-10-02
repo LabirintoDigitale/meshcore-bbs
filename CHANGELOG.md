@@ -4,6 +4,12 @@ All notable changes to **MeshCore BBS for Home Assistant** are documented here. 
 
 ## [Unreleased]
 
+## [0.8.5] - 2026-10-02
+
+### Fixed
+
+- **A saved route showed "Flood" again.** Upstream merges the radio's contacts with the copies discovered from adverts and keeps the newer one; a repeater that adverts often kept showing its advert copy, which never has a route. Contacts now always take `out_path` / `out_path_len` / `out_path_hash_mode` from the radio's own contact table, so the route dialog and node details show the route actually stored on the radio.
+
 ## [0.8.4] - 2026-10-02
 
 ### Fixed

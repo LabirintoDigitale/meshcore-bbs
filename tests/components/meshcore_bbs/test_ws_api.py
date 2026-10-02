@@ -3881,3 +3881,30 @@ async def test_ws_set_device_config_path_hash_mode_ok_counts_success(
     assert len(conn.results) == 1
     _, result = conn.results[0]
     assert "path_hash_mode" in result["changed"]
+
+
+async def test_contacts_take_route_from_the_radio(
+    hass: HomeAssistant, coordinator: MagicMock
+) -> None:
+    """An advert copy (flood) never hides the route stored on the radio."""
+    pk = "bc565fa64097" + "00" * 26
+    advert_copy = {"public_key": pk, "adv_name": "Tom-D", "added_to_node": True,
+                   "out_path": "", "out_path_len": -1, "out_path_hash_mode": -1, "lastmod": 999}
+    other = {"public_key": "ab" * 32, "adv_name": "Other", "out_path_len": -1}
+    coordinator._contacts = {pk[:12]: {"public_key": pk, "out_path": "5097",
+                                       "out_path_len": 1, "out_path_hash_mode": 1, "lastmod": 10}}
+    coordinator.api.mesh_core.contacts = {}
+
+    async def _fake_call(*a, **kw):
+        return {"contacts": [advert_copy, other]}
+    with (
+        patch("homeassistant.core.ServiceRegistry.has_service", return_value=True),
+        patch("homeassistant.core.ServiceRegistry.async_call", side_effect=_fake_call),
+    ):
+        conn = _Connection()
+        await _call_ws(ws_api.ws_get_contacts, hass, conn, {"id": 1})
+    tom, oth = conn.results[0][1]["contacts"]
+    assert (tom["out_path"], tom["out_path_len"], tom["out_path_hash_mode"]) == ("5097", 1, 1)
+    assert tom["adv_name"] == "Tom-D" and tom["lastmod"] == 999
+    assert oth == other
+    assert advert_copy["out_path_len"] == -1  # upstream's dict is not mutated
