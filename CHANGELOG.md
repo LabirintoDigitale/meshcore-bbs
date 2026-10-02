@@ -4,6 +4,14 @@ All notable changes to **MeshCore BBS for Home Assistant** are documented here. 
 
 ## [Unreleased]
 
+### Fixed
+
+- **Channel history attached to the wrong channel with several radios.** Channel conversations were stored by radio + *slot* (`…_ch_<slot>_messages`). Slots are local to each companion and change when channels are reordered or recreated, so a slot's old messages showed up under whichever channel took the slot (e.g. old #path messages in #test), and history did not follow a channel to its new slot. Channel history is now stored per radio + channel identity (hash of the channel key, or its name when the key is unknown); live events, which upstream still sends with the slot id, are translated on arrival. `get_channels` gives the panel each channel's `conversation_id`, which it uses to load history, count unreads and mark read — without requiring the upstream `_ch_N_messages` entity to exist.
+
+### Migration
+
+- Existing slot-keyed history is moved automatically, per radio, as soon as that radio's channel table is known (at startup, retried in the background, and when the panel lists channels). Each slot's messages are split by the channel name recorded on every message, so messages go back to their own channel whatever slot it occupies now; messages of channels no longer on the radio are kept under a name-based key; records without a name stay with the slot's current channel. Read cursors move with the message they point at. New data is written before the old file is removed.
+
 ## [0.7.9] - 2026-10-02
 
 ### Changed

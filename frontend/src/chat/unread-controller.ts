@@ -485,6 +485,12 @@ export class UnreadController {
     if (directKey && counts[directKey]) {
       return counts[directKey];
     }
+    // A stable channel key (radio + channel identity) is authoritative:
+    // never fall back to slot-pattern matching, whose slot may now belong
+    // to another channel.
+    if (directKey && /_chan_[kn][0-9a-z-]*_messages$/.test(directKey)) {
+      return 0;
+    }
 
     const isChannel = /^\d+$/.test(idOrSelectedId);
     const channelNeedle = nodePrefix

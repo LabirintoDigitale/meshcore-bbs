@@ -1068,13 +1068,25 @@ export class ChatPage extends LitElement {
       this._conversationResolved = true;
       const isContact = 'pubkey_prefix' in conversation;
       let entityId: string | null = null;
+      // Ids live events of this conversation carry when they differ from
+      // the storage key (channel slot id vs stable channel key).
+      const liveIds: string[] = [];
 
       if (isContact) {
         const prefix = (conversation as Contact).pubkey_prefix;
         entityId = discoverContactEntity(this.hass, this.config, prefix);
       } else {
-        const idx = (conversation as Channel).channel_idx;
-        entityId = discoverChannelEntity(this.hass, this.config, idx);
+        const channel = conversation as Channel;
+        const idx = channel.channel_idx;
+        if (channel.conversation_id) {
+          // History is keyed by radio + channel identity, not by slot.
+          entityId = channel.conversation_id;
+          if (this.config.node_prefix) {
+            liveIds.push(`binary_sensor.meshcore_${this.config.node_prefix}_ch_${idx}_messages`);
+          }
+        } else {
+          entityId = discoverChannelEntity(this.hass, this.config, idx);
+        }
       }
 
       // entityId may be null if no messages exchanged yet — that's OK,
@@ -1124,7 +1136,7 @@ export class ChatPage extends LitElement {
       // the controller's deferred post-switch timer, or the "↓ N new"
       // pill's `onPillJump` (via `_jumpToBottom`).
       this.unread.beginConversation(entityId, unreadCount);
-      this._messageStore.switchEntity(entityId, anchor);
+      this._messageStore.switchEntity(entityId, anchor, liveIds);
     }
   }
 

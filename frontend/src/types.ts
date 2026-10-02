@@ -255,6 +255,13 @@ export interface Channel {
   name: string;
   settings: Record<string, unknown>;
   /**
+   * Stable conversation key (radio + channel identity) the history is
+   * stored under — independent of the slot, which differs between radios
+   * and changes when channels are reordered. Live events still carry the
+   * slot entity id (`…_ch_<idx>_messages`).
+   */
+  conversation_id?: string;
+  /**
    * Persisted per-channel region scope. Threaded into
    * `meshcore.send_channel_message`'s `scope` argument on each send so
    * the message floods only through repeaters configured for that

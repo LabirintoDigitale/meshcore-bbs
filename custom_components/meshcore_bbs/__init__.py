@@ -22,6 +22,7 @@ present whenever ``async_setup_entry`` runs here.
 """
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import logging
 from dataclasses import dataclass
@@ -44,6 +45,7 @@ from .const import (
 from .bbs import Bbs
 from .bbs_ws import async_register_bbs_commands
 from .bot import ChannelBot, async_register_bot_commands
+from .channel_keys import SLOT_ENTITY_RE, async_migrate, conversation_key
 from .channel_scopes import ChannelScopeStore
 from .late_echo import LateEchoTracker
 from .message_store import MessageStore
@@ -207,6 +209,14 @@ async def async_setup_entry(
         tracker = UnreadTracker(hass, entry.entry_id)
         await tracker.async_load()
         bucket["unread_tracker"] = tracker
+
+    # Move slot-keyed channel history (older versions) to stable channel
+    # keys. Needs each radio's channel table, which upstream loads after
+    # connecting — so retry in the background until nothing is left.
+    bucket["channel_migration_lock"] = asyncio.Lock()
+    entry.async_create_background_task(
+        hass, _async_channel_migration_loop(hass, store), "meshcore_bbs channel key migration"
+    )
 
     # Per-channel region-scope store is likewise a process-wide singleton.
     # Scopes are keyed inside the store by (upstream meshcore entry_id,
@@ -409,6 +419,10 @@ def _make_message_handler(hass: HomeAssistant, entry_id: str):
             # to. The upstream meshcore integration always sets this; bail
             # quietly rather than scanning.
             return
+        # Channel history is stored per radio + channel identity, not per
+        # slot (slots differ between radios and change when channels are
+        # reordered) — see channel_keys.py.
+        entity_id = conversation_key(hass, entity_id, data.get("channel_idx"))
 
         msg_id = _store_message_id(data)
         if not msg_id:
@@ -589,6 +603,8 @@ def _make_delivery_update_handler(hass: HomeAssistant, entry_id: str):
 
         entity_id = data.get("entity_id")
         if entity_id:
+            entity_id = conversation_key(hass, entity_id, data.get("channel_idx"))
+        if entity_id:
             if status is not None:
                 await store.update_message_delivery(
                     entity_id, msg_id, status, **kwargs
@@ -640,6 +656,30 @@ def _make_connection_state_handler(
         )
 
     return _handle
+
+
+CHANNEL_MIGRATION_RETRY_SECONDS = 30
+CHANNEL_MIGRATION_ATTEMPTS = 40
+
+
+async def async_run_channel_migration(hass: HomeAssistant, store: MessageStore) -> int:
+    """One migration pass (serialised); returns the conversations moved."""
+    bucket = hass.data.get(DOMAIN, {})
+    lock = bucket.get("channel_migration_lock") or asyncio.Lock()
+    async with lock:
+        try:
+            return await async_migrate(hass, store, bucket.get("unread_tracker"))
+        except Exception as ex:  # pragma: no cover - defensive
+            _LOGGER.warning("Channel history migration failed: %s", ex)
+            return 0
+
+
+async def _async_channel_migration_loop(hass: HomeAssistant, store: MessageStore) -> None:
+    for _ in range(CHANNEL_MIGRATION_ATTEMPTS):
+        await async_run_channel_migration(hass, store)
+        if not any(SLOT_ENTITY_RE.match(k) for k in store.get_message_index()):
+            return
+        await asyncio.sleep(CHANNEL_MIGRATION_RETRY_SECONDS)
 
 
 def _resolve_store(hass: HomeAssistant, entry_id: str) -> MessageStore | None:

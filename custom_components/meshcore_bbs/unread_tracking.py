@@ -150,6 +150,17 @@ class UnreadTracker:
         """
         return self._last_read.get(entity_id)
 
+    def move_cursor(self, old_key: str, new_key: str | None, message_id: str) -> None:
+        """Move a read cursor to another conversation (channel key migration).
+
+        The cursor goes to ``new_key`` unless that conversation already has
+        its own; with no ``new_key`` it is just dropped.
+        """
+        self._last_read.pop(old_key, None)
+        if new_key and new_key not in self._last_read:
+            self._last_read[new_key] = message_id
+        self._schedule_save()
+
     def get_all_last_read(self) -> dict[str, str]:
         """Return a defensive copy of the cursor map.
 

@@ -32,6 +32,8 @@ export class MessageStore {
   private _loading = false;
   private _error: string | null = null;
   private _entityId: string | null = null;
+  /** Other entity ids live events of this conversation may carry (channel slot id). */
+  private _liveIds: Set<string> = new Set();
   private _config: PanelConfig;
   private _hass: HomeAssistant | null = null;
   private _pollTimer: ReturnType<typeof setTimeout> | null = null;
@@ -189,8 +191,12 @@ export class MessageStore {
   async switchEntity(
     entityId: string | null,
     anchorId: string | null = null,
+    liveIds: string[] = [],
   ): Promise<void> {
     if (entityId === this._entityId) return;
+    // Live events of a channel carry its slot entity id while the history
+    // is stored under the stable channel key: accept both.
+    this._liveIds = new Set(liveIds);
 
     // Cleanup previous subscriptions
     this._stopUpdates();
@@ -617,6 +623,12 @@ export class MessageStore {
     });
   }
 
+  /** Does an event's entity_id belong to the open conversation? */
+  private _isLive(eventEntityId: unknown, entityId: string): boolean {
+    return eventEntityId === entityId
+      || (typeof eventEntityId === 'string' && this._liveIds.has(eventEntityId));
+  }
+
   /**
    * Subscribe to real-time WebSocket events for instant message display.
    */
@@ -629,7 +641,7 @@ export class MessageStore {
       // meshcore_message — incoming & outgoing messages
       const unsubMsg = await this._hass.connection.subscribeEvents(
         (event: HassEvent) => {
-          if (event.data.entity_id === entityId) {
+          if (this._isLive(event.data.entity_id, entityId)) {
             this._handleRealtimeMessage(event.data);
           }
         },
@@ -640,7 +652,7 @@ export class MessageStore {
       // meshcore_delivery_update — delivery status updates
       const unsubDelivery = await this._hass.connection.subscribeEvents(
         (event: HassEvent) => {
-          if (event.data.entity_id === entityId) {
+          if (this._isLive(event.data.entity_id, entityId)) {
             this._handleDeliveryUpdate(event.data);
           }
         },

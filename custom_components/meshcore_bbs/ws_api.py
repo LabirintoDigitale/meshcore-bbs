@@ -34,6 +34,7 @@ from .const import (
     MESHCORE_DOMAIN,
 )
 from .message_store import MessageStore
+from .channel_keys import channel_key
 from .utils import format_entity_id, parse_flood_scope_allowlist, sanitize_name
 
 _LOGGER = logging.getLogger(__name__)
@@ -765,6 +766,12 @@ def ws_get_channels(hass, connection, msg):
             "name": channel_name,
             "settings": sanitized,
         }
+        # Stable conversation key (radio + channel identity): the panel
+        # loads and marks history with it, so a channel keeps its history
+        # whatever slot it sits in. See channel_keys.py.
+        conv = channel_key(coordinator, idx)
+        if conv:
+            channel_entry["conversation_id"] = conv
         # Merge the persisted per-channel region scope. The device-side
         # channel slot carries no scope field — the chat owns this record
         # (see channel_scopes.py) and the frontend threads it into
@@ -774,6 +781,21 @@ def ws_get_channels(hass, connection, msg):
             channel_entry["scope"] = scope
         channels.append(channel_entry)
     connection.send_result(msg["id"], {"channels": channels})
+    _schedule_channel_migration(hass, coordinator)
+
+
+def _schedule_channel_migration(hass, coordinator) -> None:
+    """Migrate this radio's slot-keyed history now that its channels are known."""
+    store = _get_store(hass, None)
+    pub = getattr(coordinator, "pubkey", None)
+    if store is None or not isinstance(pub, str) or not getattr(coordinator, "_channel_info", None):
+        return
+    prefix = f"binary_sensor.meshcore_{pub[:6].lower()}_ch_"
+    if not any(k.startswith(prefix) for k in store.get_message_index()):
+        return
+    from . import async_run_channel_migration  # noqa: PLC0415 - avoid import cycle
+
+    hass.async_create_task(async_run_channel_migration(hass, store))
 
 
 # ─── meshcore/get_flood_scopes ──────────────────────────────────────────

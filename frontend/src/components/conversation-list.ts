@@ -377,7 +377,7 @@ export class ConversationList extends LitElement {
 
     const isActive = this.activeId === id;
 
-    const unread = this._getUnreadCount(id);
+    const unread = this._getUnreadCount(id, isContact ? null : (conv as Channel).conversation_id);
     const ariaLabel = unread > 0
       ? `${name}, ${detail}, ${unread} unread`
       : `${name}, ${detail}`;
@@ -430,7 +430,7 @@ export class ConversationList extends LitElement {
     }));
   }
 
-  private _getUnreadCount(id: string): number {
+  private _getUnreadCount(id: string, directKey?: string | null): number {
     // Unified badge projection. `UnreadController.badgeCount`
     // is the single implementation backing this and
     // `chat-page._getUnreadCountForSelected`. It owns the entity-id
@@ -439,7 +439,7 @@ export class ConversationList extends LitElement {
     // don't cross-contaminate), and the suffix-only fallback when
     // nodePrefix is null. The `unread` prop is always supplied by
     // chat-page; the guard covers the brief pre-binding window.
-    return this.unread ? this.unread.badgeCount(id, this.nodePrefix) : 0;
+    return this.unread ? this.unread.badgeCount(id, this.nodePrefix, directKey) : 0;
   }
 
   private _updateFiltered() {
@@ -452,7 +452,7 @@ export class ConversationList extends LitElement {
         this._filteredConversations = this.conversations.filter((conv) => {
           const isContact = 'pubkey_prefix' in conv;
           const id = isContact ? (conv as Contact).pubkey_prefix : String((conv as Channel).channel_idx);
-          return this._getUnreadCount(id) > 0;
+          return this._getUnreadCount(id, isContact ? null : (conv as Channel).conversation_id) > 0;
         });
         break;
       case 'dms':

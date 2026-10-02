@@ -386,6 +386,55 @@ class MessageStore:
                 return entity_id
         return None
 
+    async def move_conversation(
+        self, old_key: str, groups: dict[str, list[dict]]
+    ) -> None:
+        """Move a conversation's messages into other conversations, then drop it.
+
+        ``groups`` maps each target key to the messages that go there.
+        Targets that already hold messages are merged (dedup by id, kept
+        chronological, trimmed to the per-conversation limit). Targets are
+        written to disk before the old conversation is removed, so an
+        interruption can duplicate but never lose history.
+        """
+        max_per_conv = self.config_entry.options.get(
+            OPT_MAX_MESSAGES_PER_CONVERSATION,
+            DEFAULT_MAX_MESSAGES_PER_CONVERSATION,
+        )
+        for key, incoming in groups.items():
+            if key == old_key:
+                continue
+            messages = await self._ensure_loaded(key)
+            seen = {m.get("id") for m in messages if m.get("id")}
+            for m in incoming:
+                if m.get("id") and m.get("id") in seen:
+                    continue
+                messages.append(m)
+            messages.sort(key=lambda m: m.get("timestamp", ""))
+            if len(messages) > max_per_conv:
+                messages[:] = messages[-max_per_conv:]
+            await self._store_for(key).async_save(messages)
+            self._conversation_dirty.discard(key)
+            if messages:
+                newest = messages[-1]
+                self._message_index[key] = {
+                    "message_count": len(messages),
+                    "last_message_ts": newest.get("timestamp", ""),
+                    "last_sender": newest.get("sender", ""),
+                    "last_preview": (newest.get("text", "") or "")[:50],
+                }
+        if old_key not in groups:
+            timer = self._msg_save_timers.pop(old_key, None)
+            if timer is not None:
+                timer.cancel()
+            self._loaded_conversations.pop(old_key, None)
+            self._conversation_dirty.discard(old_key)
+            self._conversation_last_access.pop(old_key, None)
+            self._message_index.pop(old_key, None)
+            await self._store_for(old_key).async_remove()
+            self._conversation_stores.pop(old_key, None)
+        await self._message_index_store.async_save(self._message_index)
+
     # ── public API: reads ──────────────────────────────────────────────────
 
     async def get_messages(
