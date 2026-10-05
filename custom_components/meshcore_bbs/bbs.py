@@ -37,7 +37,7 @@ from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
-from .bot import contact_names, path_names_reply, pong_reply
+from .bot import contact_names, path_names_reply, pong_reply, radio_location
 from .radios import bbs_radio, handles_message, radios
 from .reply_format import route_reply, split_message
 from .const import (
@@ -1071,7 +1071,8 @@ class Bbs:
             names = contact_names(get_all()) if callable(get_all) else []
         except Exception:  # pragma: no cover - defensive
             names = []
-        return path_names_reply(user.get("name", ""), {"path_nodes": nodes}, names)
+        return path_names_reply(user.get("name", ""), {"path_nodes": nodes}, names,
+                                radio_location(self.hass, coord))
 
     def radio_entry_id(self) -> str | None:
         """Entry id of the radio BBS and Bot run on."""

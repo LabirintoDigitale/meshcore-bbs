@@ -32,8 +32,9 @@ from __future__ import annotations
 
 import copy
 import logging
+import math
 import time
-from typing import Any
+from typing import Any, NamedTuple
 
 import voluptuous as vol
 from homeassistant.components import websocket_api
@@ -58,6 +59,8 @@ DEFAULT_COOLDOWN = 30
 # about 160 including the "<radio name>: " prefix. Longer replies are split
 # into numbered parts ("1/2", "2/2").
 MAX_MESSAGE_BYTES = 135
+# A hop farther than this from the next one is probably a namesake code.
+MAX_HOP_KM = 200
 CONFIG_KEYS = ("enabled", "cooldown", "channels", "radio_entry_id")
 
 
@@ -88,8 +91,28 @@ def _rekey_channels(channels: Any) -> dict[str, Any]:
     return out
 
 
-def contact_names(contacts: list[Any]) -> list[tuple[str, str, int | None]]:
-    """[(public key lower, name, type)] from a coordinator's contact list."""
+class Named(NamedTuple):
+    """A contact as needed to name a path hop."""
+    key: str             # public key, lower case
+    name: str
+    type: int | None     # 2 = repeater
+    lat: float | None    # None when the contact has no position
+    lon: float | None
+    seen: float          # last advert (epoch), 0 when unknown
+
+
+def _coord_pair(lat: Any, lon: Any) -> tuple[float, float] | None:
+    try:
+        la, lo = float(lat), float(lon)
+    except (TypeError, ValueError):
+        return None
+    if la == 0 and lo == 0:
+        return None
+    return la, lo
+
+
+def contact_names(contacts: list[Any]) -> list[Named]:
+    """Contacts of a coordinator, with what hop naming needs."""
     out = []
     for c in contacts or []:
         if not isinstance(c, dict):
@@ -98,31 +121,86 @@ def contact_names(contacts: list[Any]) -> list[tuple[str, str, int | None]]:
         name = str(c.get("adv_name") or c.get("name") or "").strip()
         if key and name:
             ctype = c.get("type")
-            out.append((key, name, ctype if isinstance(ctype, int) else None))
+            pos = _coord_pair(c.get("adv_lat"), c.get("adv_lon"))
+            try:
+                seen = float(c.get("last_advert") or c.get("lastmod") or 0)
+            except (TypeError, ValueError):
+                seen = 0.0
+            out.append(Named(key, name, ctype if isinstance(ctype, int) else None,
+                             pos[0] if pos else None, pos[1] if pos else None, seen))
     return out
 
 
-def hop_name(hop: str, names: list[tuple[str, str, int | None]]) -> str:
-    """Name of the node whose key starts with ``hop``; repeaters preferred."""
-    h = hop.lower()
-    matches = [(n, t) for k, n, t in names if k.startswith(h)]
-    if not matches:
-        return "Unknown"
-    for n, t in matches:
-        if t == 2:
-            return n
-    return matches[0][0]
+def _distance_km(a: tuple[float, float], b: tuple[float, float]) -> float:
+    la1, lo1, la2, lo2 = map(math.radians, (*a, *b))
+    h = math.sin((la2 - la1) / 2) ** 2 + math.cos(la1) * math.cos(la2) * math.sin((lo2 - lo1) / 2) ** 2
+    return 6371.0 * 2 * math.asin(math.sqrt(min(1.0, h)))
+
+
+def _pick(cands: list[Named], near: tuple[float, float] | None) -> Named:
+    """The likeliest of several nodes sharing a hop code: the closest to
+    ``near`` (the next hop towards us, or our own radio), else the one
+    heard most recently."""
+    placed = [c for c in cands if c.lat is not None and c.lon is not None]
+    if near is not None and placed:
+        return min(placed, key=lambda c: _distance_km(near, (c.lat, c.lon)))
+    return max(cands, key=lambda c: c.seen)
+
+
+def hop_names(hops: list[str], names: list[Named],
+              origin: tuple[float, float] | None = None) -> list[str]:
+    """Name each hop code of a path (first hop = nearest the sender).
+
+    Hop codes are the first 1–4 bytes of a node's key, so with 1-byte codes
+    many nodes share one. Repeaters are preferred, and among them the one
+    closest to the following hop — resolved backwards from ``origin``, the
+    receiving radio — since each hop must be in range of the next. A name
+    picked among several candidates, or farther than ``MAX_HOP_KM`` from the
+    next hop (likely another node with the same code), is marked with ``?``.
+    """
+    out = [""] * len(hops)
+    near = origin
+    for i in range(len(hops) - 1, -1, -1):
+        h = hops[i].lower()
+        matches = [c for c in names if c.key.startswith(h)]
+        repeaters = [c for c in matches if c.type == 2]
+        cands = repeaters or matches
+        if not cands:
+            out[i] = "Unknown"
+            continue
+        pick = _pick(cands, near)
+        far = (near is not None and pick.lat is not None and pick.lon is not None
+               and _distance_km(near, (pick.lat, pick.lon)) > MAX_HOP_KM)
+        out[i] = pick.name + (" ?" if len(cands) > 1 or far else "")
+        if pick.lat is not None and pick.lon is not None:
+            near = (pick.lat, pick.lon)
+    return out
+
+
+def hop_name(hop: str, names: list[Named]) -> str:
+    """Name of the node whose key starts with ``hop`` (single hop)."""
+    return hop_names([hop], names)[0]
+
+
+def radio_location(hass: HomeAssistant, coord: Any) -> tuple[float, float] | None:
+    """Position of a companion radio (its advert position), else Home Assistant's."""
+    info = getattr(getattr(getattr(coord, "api", None), "mesh_core", None), "self_info", None)
+    if isinstance(info, dict):
+        pos = _coord_pair(info.get("adv_lat"), info.get("adv_lon"))
+        if pos:
+            return pos
+    return _coord_pair(getattr(hass.config, "latitude", None), getattr(hass.config, "longitude", None))
 
 
 def path_names_reply(sender: str, entry: dict[str, Any] | None,
-                     names: list[tuple[str, str, int | None]]) -> list[str]:
+                     names: list[Named], origin: tuple[float, float] | None = None) -> list[str]:
     """``path_names`` action: header plus one ``CODE: name`` line per hop."""
     nodes = [str(h) for h in ((entry or {}).get("path_nodes") or [])]
     if not nodes:
         return [f"@[{sender}] direct (0 hops)"]
     n = len(nodes)
     lines = [f"@[{sender}] {n} hop{'s' if n != 1 else ''}"]
-    lines += [f"{h.upper()}: {hop_name(h, names)}" for h in nodes]
+    lines += [f"{h.upper()}: {name}" for h, name in zip(nodes, hop_names(nodes, names, origin))]
     return split_message("\n".join(lines), MAX_MESSAGE_BYTES)
 
 
@@ -275,7 +353,12 @@ class ChannelBot:
         bbs = self.hass.data.get(DOMAIN, {}).get("bbs")
         return (bbs.settings.get("radio_entry_id") if bbs is not None else None) or None
 
-    def _names(self, entry_id: str | None) -> list[tuple[str, str, int | None]]:
+    def _origin(self, entry_id: str | None) -> tuple[float, float] | None:
+        coords = self.hass.data.get(MESHCORE_DOMAIN) or {}
+        coord = coords.get(entry_id) if entry_id else next(iter(coords.values()), None)
+        return radio_location(self.hass, coord)
+
+    def _names(self, entry_id: str | None) -> list[Named]:
         """Contact names of the bot's radio, to resolve path hop codes."""
         coords = self.hass.data.get(MESHCORE_DOMAIN) or {}
         coord = coords.get(entry_id) if entry_id else next(iter(coords.values()), None)
@@ -296,7 +379,7 @@ class ChannelBot:
         if action == "route_reply":
             return split_message(route_reply(sender, first), MAX_MESSAGE_BYTES)
         if action == "path_names":
-            return path_names_reply(sender, first, self._names(entry_id))
+            return path_names_reply(sender, first, self._names(entry_id), self._origin(entry_id))
         if action == "pong":
             return [pong_reply()]
         return []

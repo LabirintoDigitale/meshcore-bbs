@@ -4,6 +4,12 @@ All notable changes to **MeshCore BBS for Home Assistant** are documented here. 
 
 ## [Unreleased]
 
+## [0.8.16] - 2026-10-05
+
+### Fixed
+
+- **"Path with repeater names" named the wrong repeater for short hop codes.** With 1-byte codes many contacts share one code and the first match was used (e.g. a repeater in L'Aquila for a hop near Feltre). Hops are now resolved from the receiving radio backwards: among the repeaters sharing a code, the one closest to the next hop (or to the radio, for the last hop) is chosen; without positions, the most recently heard. A name picked among several candidates, or more than 200 km from the next hop, is marked with `?`. Applies to the bot and to the BBS `path` action.
+
 ## [0.8.15] - 2026-10-05
 
 ### Added

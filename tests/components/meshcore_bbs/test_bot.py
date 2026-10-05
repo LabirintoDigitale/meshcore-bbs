@@ -15,6 +15,7 @@ from custom_components.meshcore_bbs.bot import (
     ChannelBot,
     async_register_bot_commands,
     contact_names,
+    hop_names,
     path_names_reply,
     pong_reply,
     MAX_MESSAGE_BYTES,
@@ -150,6 +151,28 @@ def test_path_names_reply() -> None:
     assert path_names_reply("X", {"path_nodes": []}, names) == ["@[X] direct (0 hops)"]
     assert path_names_reply("X", None, names) == ["@[X] direct (0 hops)"]
 
+
+
+def test_shared_hop_codes_pick_the_nearest_repeater() -> None:
+    """1-byte codes: of the repeaters sharing a code, the one near the next hop wins."""
+    feltre = (46.02, 11.90)
+    contacts = [
+        {"public_key": "a0" + "11" * 31, "adv_name": "AQ03-R IQ6VP", "type": 2, "adv_lat": 42.35, "adv_lon": 13.40},
+        {"public_key": "a0" + "22" * 31, "adv_name": "Monte Avena", "type": 2, "adv_lat": 46.03, "adv_lon": 11.85},
+        {"public_key": "7d" + "33" * 31, "adv_name": "Bassano RPT", "type": 2, "adv_lat": 45.77, "adv_lon": 11.73},
+        {"public_key": "7d" + "44" * 31, "adv_name": "Lecce RPT", "type": 2, "adv_lat": 40.35, "adv_lon": 18.17},
+        {"public_key": "c4" + "55" * 31, "adv_name": "Senza posizione A", "type": 2, "last_advert": 100},
+        {"public_key": "c4" + "66" * 31, "adv_name": "Senza posizione B", "type": 2, "last_advert": 200},
+    ]
+    names = contact_names(contacts)
+    # Path sender → 7d → a0 → us (Feltre): a0 is resolved near us, then 7d near Monte Avena.
+    assert hop_names(["7d", "a0"], names, feltre) == ["Bassano RPT ?", "Monte Avena ?"]
+    # No positions: the most recently heard.
+    assert hop_names(["c4"], names, feltre) == ["Senza posizione B ?"]
+    # Unique code: no question mark.
+    assert hop_names(["7d33"], names, feltre) == ["Bassano RPT"]
+    # Unique code but 400 km away: probably another node, marked.
+    assert hop_names(["a011"], names, feltre) == ["AQ03-R IQ6VP ?"]
 
 def test_long_path_is_numbered() -> None:
     names = contact_names(CONTACTS)
