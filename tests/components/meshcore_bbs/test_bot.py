@@ -1,6 +1,8 @@
 """Tests for the channel bot (``bot.py``)."""
 from __future__ import annotations
 
+import re
+
 from types import SimpleNamespace
 from typing import Any
 
@@ -14,6 +16,7 @@ from custom_components.meshcore_bbs.bot import (
     async_register_bot_commands,
     contact_names,
     path_names_reply,
+    pong_reply,
     MAX_MESSAGE_BYTES,
     rule_matches,
 )
@@ -170,6 +173,20 @@ async def test_path_action_names_the_hops(hass: HomeAssistant, bot: ChannelBot) 
         "@[Alfa 10] 3 hops\n9A92: Cesura90 Repeater\n86A8: Unknown\n146C: Feltre Repeater")
     assert calls[0].data["entry_id"] == "BASE"
 
+
+
+def test_pong_reply() -> None:
+    from datetime import datetime
+    assert pong_reply(datetime(2026, 10, 5, 18, 32, 10)) == "Pong (05/10/2026 18:32:10)"
+
+
+async def test_pong_action(hass: HomeAssistant, bot: ChannelBot) -> None:
+    hass.data[MESHCORE_DOMAIN] = {"BASE": SimpleNamespace(pubkey="a77aae" + "00" * 29, name="Base")}
+    bot.set_config({**bot.config, "channels": {"3": {"name": "#path", "rules": [
+        {"trigger": "ping", "match": "exact", "action": "pong"}]}}})
+    calls = async_mock_service(hass, MESHCORE_DOMAIN, "send_channel_message")
+    await bot.async_handle_event(_msg("Ping"))
+    assert re.fullmatch(r"Pong \(\d{2}/\d{2}/\d{4} \d{2}:\d{2}:\d{2}\)", calls[0].data["message"])
 
 async def test_bot_radio_choice_is_strict(hass: HomeAssistant, bot: ChannelBot) -> None:
     hass.data[MESHCORE_DOMAIN] = {

@@ -4,6 +4,12 @@ All notable changes to **MeshCore BBS for Home Assistant** are documented here. 
 
 ## [Unreleased]
 
+## [0.8.13] - 2026-10-05
+
+### Added
+
+- **Bot action "Pong with the time received".** Replies `Pong (05/10/2026 18:32:10)` with the local date and time the command was received — a quick liveness check for the bot and the radio. Available next to "Reply with route" and "Path with repeater names".
+
 ## [0.8.12] - 2026-10-02
 
 ### Added

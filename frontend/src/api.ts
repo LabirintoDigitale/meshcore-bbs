@@ -1102,7 +1102,7 @@ export function requestTelemetry(
 // ─── Channel bot ─────────────────────────────────────────────────────────
 
 export type BotMatch = 'exact' | 'starts_with' | 'contains';
-export type BotAction = 'route_reply' | 'path_names';
+export type BotAction = 'route_reply' | 'path_names' | 'pong';
 
 export interface BotRule {
   trigger: string;

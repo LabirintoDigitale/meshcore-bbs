@@ -16,6 +16,10 @@ the radio's contacts (``Unknown`` when not found)::
     86A8: Unknown
     146C: Feltre Repeater
 
+``pong`` — a liveness check, with the time the command was received::
+
+    Pong (05/10/2026 18:32:10)
+
 The bot runs on one radio: the one chosen in its settings, or the BBS
 radio when none is chosen. A chosen radio that is not connected pauses
 the bot rather than moving it to another radio.
@@ -35,6 +39,7 @@ import voluptuous as vol
 from homeassistant.components import websocket_api
 from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.helpers.storage import Store
+from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN, MESHCORE_DOMAIN, STORAGE_VERSION
 from .radios import handles_message
@@ -47,7 +52,7 @@ STORAGE_KEY_BOT = "meshcore_bbs.bot"
 EVENT_BOT_UPDATED = "meshcore_bbs_bot_updated"
 
 MATCH_TYPES = ("exact", "starts_with", "contains")
-ACTIONS = ("route_reply", "path_names")
+ACTIONS = ("route_reply", "path_names", "pong")
 DEFAULT_COOLDOWN = 30
 # Longest channel message the bot sends, in UTF-8 bytes: MeshCore allows
 # about 160 including the "<radio name>: " prefix. Longer replies are split
@@ -119,6 +124,11 @@ def path_names_reply(sender: str, entry: dict[str, Any] | None,
     lines = [f"@[{sender}] {n} hop{'s' if n != 1 else ''}"]
     lines += [f"{h.upper()}: {hop_name(h, names)}" for h in nodes]
     return split_message("\n".join(lines), MAX_MESSAGE_BYTES)
+
+
+def pong_reply(received=None) -> str:
+    """``pong`` action: ``Pong (dd/mm/yyyy hh:mm:ss)``, local time of reception."""
+    return f"Pong ({(received or dt_util.now()).strftime('%d/%m/%Y %H:%M:%S')})"
 
 
 def rule_matches(rule: dict[str, Any], text: str) -> bool:
@@ -287,6 +297,8 @@ class ChannelBot:
             return split_message(route_reply(sender, first), MAX_MESSAGE_BYTES)
         if action == "path_names":
             return path_names_reply(sender, first, self._names(entry_id))
+        if action == "pong":
+            return [pong_reply()]
         return []
 
 

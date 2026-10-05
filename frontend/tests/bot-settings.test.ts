@@ -98,7 +98,7 @@ describe('meshcore-bot-settings', () => {
     chans(el).find((c) => c.textContent!.includes('#path'))!.click();
     await el.updateComplete;
     const opts = [...el.shadowRoot!.querySelectorAll('.rule select:nth-of-type(2) option')].map((o) => o.textContent!.trim());
-    expect(opts).toEqual(['Reply with route', 'Path with repeater names']);
+    expect(opts).toEqual(['Reply with route', 'Path with repeater names', 'Pong with the time received']);
   });
 
   describe('radio choice', () => {

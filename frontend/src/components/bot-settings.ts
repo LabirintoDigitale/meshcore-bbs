@@ -17,6 +17,7 @@ import { bbsState, BbsStateController } from '../bbs/bbs-state';
 const ACTION_LABELS: Record<BotAction, string> = {
   route_reply: 'Reply with route',
   path_names: 'Path with repeater names',
+  pong: 'Pong with the time received',
 };
 
 const MATCH_LABELS: Record<BotMatch, string> = {
