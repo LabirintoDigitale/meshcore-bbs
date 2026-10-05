@@ -18,7 +18,7 @@ the radio's contacts (``Unknown`` when not found)::
 
 ``pong`` — a liveness check, with the time the command was received::
 
-    Pong (05/10/2026 18:32:10)
+    Pong (RX: 18:32:10)
 
 The bot runs on one radio: the one chosen in its settings, or the BBS
 radio when none is chosen. A chosen radio that is not connected pauses
@@ -127,8 +127,8 @@ def path_names_reply(sender: str, entry: dict[str, Any] | None,
 
 
 def pong_reply(received=None) -> str:
-    """``pong`` action: ``Pong (dd/mm/yyyy hh:mm:ss)``, local time of reception."""
-    return f"Pong ({(received or dt_util.now()).strftime('%d/%m/%Y %H:%M:%S')})"
+    """``pong`` action: ``Pong (RX: hh:mm:ss)``, local time of reception."""
+    return f"Pong (RX: {(received or dt_util.now()).strftime('%H:%M:%S')})"
 
 
 def rule_matches(rule: dict[str, Any], text: str) -> bool:

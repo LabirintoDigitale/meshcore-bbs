@@ -4,6 +4,12 @@ All notable changes to **MeshCore BBS for Home Assistant** are documented here. 
 
 ## [Unreleased]
 
+## [0.8.14] - 2026-10-05
+
+### Changed
+
+- **Pong reply shows only the time:** `Pong (RX: 18:32:10)`.
+
 ## [0.8.13] - 2026-10-05
 
 ### Added

@@ -177,7 +177,7 @@ async def test_path_action_names_the_hops(hass: HomeAssistant, bot: ChannelBot) 
 
 def test_pong_reply() -> None:
     from datetime import datetime
-    assert pong_reply(datetime(2026, 10, 5, 18, 32, 10)) == "Pong (05/10/2026 18:32:10)"
+    assert pong_reply(datetime(2026, 10, 5, 18, 32, 10)) == "Pong (RX: 18:32:10)"
 
 
 async def test_pong_action(hass: HomeAssistant, bot: ChannelBot) -> None:
@@ -186,7 +186,7 @@ async def test_pong_action(hass: HomeAssistant, bot: ChannelBot) -> None:
         {"trigger": "ping", "match": "exact", "action": "pong"}]}}})
     calls = async_mock_service(hass, MESHCORE_DOMAIN, "send_channel_message")
     await bot.async_handle_event(_msg("Ping"))
-    assert re.fullmatch(r"Pong \(\d{2}/\d{2}/\d{4} \d{2}:\d{2}:\d{2}\)", calls[0].data["message"])
+    assert re.fullmatch(r"Pong \(RX: \d{2}:\d{2}:\d{2}\)", calls[0].data["message"])
 
 async def test_bot_radio_choice_is_strict(hass: HomeAssistant, bot: ChannelBot) -> None:
     hass.data[MESHCORE_DOMAIN] = {
