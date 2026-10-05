@@ -4,6 +4,13 @@ All notable changes to **MeshCore BBS for Home Assistant** are documented here. 
 
 ## [Unreleased]
 
+## [0.8.15] - 2026-10-05
+
+### Added
+
+- **BBS word commands.** An option of the main menu with `"hidden": true` is a command: it is not listed in the menu, works from any menu and also as the first message of a session (no welcome/menu first). Keys can be words, e.g. `ping`, `test`, `path`.
+- **BBS menu actions `pong` and `path`.** `pong` replies `Pong (RX: hh:mm:ss)`; `path` replies with the repeaters the user's message came through, one per line with the name from the BBS radio's contacts (same format as the bot's "Path with repeater names").
+
 ## [0.8.14] - 2026-10-05
 
 ### Changed

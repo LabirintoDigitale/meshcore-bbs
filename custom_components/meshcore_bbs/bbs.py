@@ -37,6 +37,7 @@ from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
+from .bot import contact_names, path_names_reply, pong_reply
 from .radios import bbs_radio, handles_message, radios
 from .reply_format import route_reply, split_message
 from .const import (
@@ -57,7 +58,7 @@ DEFAULT_REPLY_DELAY = 3.0
 # times in quick succession.
 SAVE_DELAY_SECONDS = 1.0
 
-VALID_ACTIONS = ("board", "write", "exit", "hops")
+VALID_ACTIONS = ("board", "write", "exit", "hops", "path", "pong")
 # MeshCore advert types the BBS never answers: repeaters (2), room servers
 # (3) and sensors (4) send CLI replies / status as direct messages, and an
 # auto-reply to a repeater would be interpreted as a CLI command.
@@ -650,8 +651,20 @@ class Bbs:
         if menu.get("title"):
             lines.append(self._fill(str(menu["title"]), user))
         for opt in menu["options"]:
+            if opt.get("hidden"):
+                continue  # a command, not a menu entry
             lines.append(f"{opt.get('key', '?')} {self._fill(str(opt.get('label', '')), user)}")
         return "\n".join(lines)
+
+    @staticmethod
+    def _find_command(main: dict, cmd: str) -> dict | None:
+        """A ``hidden`` option of the main menu: a command typed by word
+        ("ping", "test", "path") that works from any menu and as the very
+        first message, without showing the menu first."""
+        for opt in main["options"]:
+            if opt.get("hidden") and str(opt.get("key", "")).strip().lower() == cmd:
+                return opt
+        return None
 
     @staticmethod
     def _find_option(menu: dict, cmd: str) -> dict | None:
@@ -690,6 +703,9 @@ class Bbs:
 
         if mode == "new":
             self._set_state(user_pk, f"menu:{main_id}")
+            command = self._find_command(main, cmd)
+            if command is not None:
+                return self._run_option(command, user_pk, user, main_id, main, meta)
             out = []
             if main.get("welcome"):
                 out.append(self._fill(str(main["welcome"]), user))
@@ -711,10 +727,15 @@ class Bbs:
         if cmd in RESERVED_KEYS:
             return [self._render_menu(menu, user)]
 
-        opt = self._find_option(menu, cmd)
+        opt = self._find_option(menu, cmd) or self._find_command(main, cmd)
         if opt is None:
             return ["Scelta non valida.", self._render_menu(menu, user)]
+        return self._run_option(opt, user_pk, user, mid, menu, meta)
 
+    def _run_option(
+        self, opt: dict, user_pk: str, user: dict, mid: int, menu: dict,
+        meta: dict[str, Any] | None = None,
+    ) -> list[str]:
         typ = opt.get("type", "")
         if typ == "text":
             msg = self._fill(str(opt.get("text", "")), user)
@@ -766,6 +787,11 @@ class Bbs:
         if action == "hops":
             # How this very message reached the BBS (hops, SNR, RSSI, time).
             return [self.hops_reply(user, meta)]
+        if action == "pong":
+            return [pong_reply()]
+        if action == "path":
+            # Repeaters the message came through, one per line with its name.
+            return self.path_reply(user, meta)
         if action == "exit":
             self._sessions.pop(user_pk, None)
             return [f"Ciao {user['name']}, a presto!"]
@@ -1030,6 +1056,22 @@ class Bbs:
             "snr": snr,
             "rssi": rssi,
         })
+
+    def path_reply(self, user: dict, meta: dict[str, Any] | None) -> list[str]:
+        """``path`` action: ``@[name] 2 hops`` then ``CODE: repeater name`` per hop."""
+        meta = meta or {}
+        pk = clean_pubkey(meta.get("pubkey_prefix") or meta.get("public_key") or "")
+        route = self._dm_route(pk) if pk else None
+        nodes = route[0] if route is not None else []
+        coords = self.hass.data.get(MESHCORE_DOMAIN) or {}
+        radio = self.radio_entry_id()
+        coord = coords.get(radio) if radio else next(iter(coords.values()), None)
+        get_all = getattr(coord, "get_all_contacts", None)
+        try:
+            names = contact_names(get_all()) if callable(get_all) else []
+        except Exception:  # pragma: no cover - defensive
+            names = []
+        return path_names_reply(user.get("name", ""), {"path_nodes": nodes}, names)
 
     def radio_entry_id(self) -> str | None:
         """Entry id of the radio BBS and Bot run on."""

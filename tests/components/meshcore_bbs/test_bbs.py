@@ -1,6 +1,8 @@
 """Tests for the built-in BBS (``bbs.py`` + ``bbs_ws.py``)."""
 from __future__ import annotations
 
+import re
+
 from types import SimpleNamespace
 from typing import Any
 
@@ -519,3 +521,35 @@ async def test_hops_menu_migration_adds_entry_once(hass: HomeAssistant, hass_sto
     b2 = Bbs(hass)
     await b2.async_load()
     assert all(o.get("action") != "hops" for o in b2.data["menus"]["1"]["config"]["options"])
+
+
+# ─── word commands (hidden options of the main menu) ────────────────────
+
+
+async def test_hidden_commands_work_anytime_and_stay_out_of_the_menu(
+    hass: HomeAssistant, bbs: Bbs
+) -> None:
+    hass.data[MESHCORE_DOMAIN] = {"BASE": SimpleNamespace(
+        pubkey="a77aae" + "00" * 29, name="Base",
+        get_all_contacts=lambda: [{"public_key": "7de3" + "00" * 30, "adv_name": "Feltre Repeater", "type": 2}])}
+    menus = dict(bbs.data["menus"])
+    menus["1"] = {**menus["1"], "config": {**menus["1"]["config"], "options": [
+        *menus["1"]["config"]["options"],
+        {"key": "ping", "label": "Ping", "type": "action", "action": "pong", "hidden": True},
+        {"key": "test", "label": "Test", "type": "action", "action": "hops", "hidden": True},
+        {"key": "path", "label": "Path", "type": "action", "action": "path", "hidden": True},
+    ]}}
+    assert bbs.set_menus(menus) == []
+
+    # First message of a session: the command runs, no welcome/menu.
+    replies, _ = bbs.process(USER, "Bob", "Ping")
+    assert len(replies) == 1 and re.fullmatch(r"Pong \(RX: \d{2}:\d{2}:\d{2}\)", replies[0])
+
+    # From a submenu too; the menu never lists them.
+    replies, _ = bbs.process(USER, "Bob", "3")
+    assert all("Ping" not in r and "Path" not in r for r in replies)
+    bbs.async_handle_raw_event(_dm_rx_event(0xBB, "7de36522"))
+    replies, _ = bbs.process(USER, "Bob", "path", {"pubkey_prefix": USER, "hop_count": 2})
+    assert replies == ["@[Bob] 2 hops\n7DE3: Feltre Repeater\n6522: Unknown"]
+    replies, _ = bbs.process(USER, "Bob", "test", {"pubkey_prefix": USER, "hop_count": 2})
+    assert replies[0].startswith("@[Bob] | 7de3,6522 (2 hops) | ")

@@ -333,8 +333,12 @@ export class BbsSettingsCard extends LitElement {
           JSON list of menus. Each option has a <code>key</code>, a <code>label</code> and a
           <code>type</code>: <code>text</code> (with <code>text</code>), <code>menu</code>
           (with the target <code>menu</code> id) or <code>action</code>
-          (<code>board</code>, <code>write</code>, <code>exit</code>, <code>hops</code> — replies with
-          the route, SNR, RSSI and time of the user's message). Placeholders:
+          (<code>board</code>, <code>write</code>, <code>exit</code>, <code>hops</code> — the route,
+          SNR, RSSI and time of the user's message —, <code>path</code> — the repeaters it came
+          through, with their names — or <code>pong</code> — "Pong (RX: time)"). A key can be a word;
+          add <code>"hidden": true</code> to an option of the main menu to make it a command
+          (e.g. <code>ping</code>, <code>test</code>, <code>path</code>): it is not listed, works from
+          any menu and also as the first message. Placeholders:
           {name} {bbs} {users} {posts} {date} {time}. Keys m, menu and ? are reserved.
         </p>
         <textarea spellcheck="false" .value=${this._currentMenusText()}
