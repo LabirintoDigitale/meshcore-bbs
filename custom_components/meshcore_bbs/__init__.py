@@ -45,6 +45,7 @@ from .const import (
 from .bbs import Bbs
 from .bbs_ws import async_register_bbs_commands
 from .bot import ChannelBot, async_register_bot_commands
+from .panel_prefs import PanelPrefs, async_register_prefs_commands
 from .channel_keys import SLOT_ENTITY_RE, async_migrate, conversation_key
 from .channel_scopes import ChannelScopeStore
 from .late_echo import LateEchoTracker
@@ -249,6 +250,12 @@ async def async_setup_entry(
         await bot.async_load()
         bucket["bot"] = bot
 
+    # Panel-wide preferences (e.g. don't count channel messages).
+    if "prefs" not in bucket:
+        prefs = PanelPrefs(hass)
+        await prefs.async_load()
+        bucket["prefs"] = prefs
+
     # Register WS commands once (idempotent registration would be ideal but
     # HA's websocket_api raises on duplicate types — guard with a flag on the
     # domain bucket so multiple config entries don't collide).
@@ -259,6 +266,7 @@ async def async_setup_entry(
         async_register_telemetry_commands(hass)
         async_register_radio_commands(hass)
         async_register_bot_commands(hass)
+        async_register_prefs_commands(hass)
         bucket["_ws_registered"] = True
 
     # One-shot detection of the upstream meshcore service surface this

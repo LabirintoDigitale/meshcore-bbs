@@ -4,7 +4,7 @@ import type { HomeAssistant, PanelConfig, Contact, Channel, MeshCoreDevice } fro
 import type { TraceResult } from './api';
 import { panelStyles } from './styles';
 import { MESHCORE_PRESET, DEFAULT_PANEL_CONFIG } from './constants';
-import { getDevices, getRadioEntries, type RadioEntry, getContacts, getChannels, getUnreadAndLastRead, markConversationRead, removeContact, addContact, traceContact, executeLocal, lastRssiFrom, type TracePathMode } from './api';
+import { getDevices, getRadioEntries, type RadioEntry, getContacts, getChannels, getUnreadAndLastRead, markConversationRead, removeContact, addContact, traceContact, executeLocal, lastRssiFrom, getPrefs, type TracePathMode } from './api';
 import { UnreadController } from './chat/unread-controller';
 import './pages/chat-page';
 import './pages/devices-page';
@@ -656,6 +656,20 @@ export class MeshCorePanel extends LitElement {
         this._loadUnreadCounts();
       },
       'meshcore_unread_updated'
+    ).then(unsubscribe => {
+      this._unsubscribeList.push(unsubscribe);
+    });
+
+    // Panel preferences: applied now and whenever Settings changes them
+    // (in this browser or another one).
+    getPrefs(this.hass)
+      .then((p) => this._unread.setIgnoreChannels(!!p.ignore_channel_unread))
+      .catch(() => { /* older backend: defaults */ });
+    this.hass.connection.subscribeEvents(
+      (event: { data?: { ignore_channel_unread?: boolean } }) => {
+        this._unread.setIgnoreChannels(!!event.data?.ignore_channel_unread);
+      },
+      'meshcore_bbs_prefs_updated'
     ).then(unsubscribe => {
       this._unsubscribeList.push(unsubscribe);
     });

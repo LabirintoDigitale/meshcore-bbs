@@ -1158,3 +1158,18 @@ export function setRadioEnabled(hass: HomeAssistant, entryId: string, enabled: b
 export function reloadRadio(hass: HomeAssistant, entryId: string): Promise<{ reloaded: boolean }> {
   return hass.callWS<{ reloaded: boolean }>({ type: 'meshcore_bbs/reload_radio', entry_id: entryId });
 }
+
+// ─── Panel preferences ─────────────────────────────────────────────────
+
+export interface PanelPrefs {
+  /** Channels show no unread count and open at the newest message. */
+  ignore_channel_unread: boolean;
+}
+
+export function getPrefs(hass: HomeAssistant): Promise<PanelPrefs> {
+  return hass.callWS<PanelPrefs>({ type: 'meshcore_bbs/prefs_get' });
+}
+
+export function setPrefs(hass: HomeAssistant, prefs: Partial<PanelPrefs>): Promise<PanelPrefs> {
+  return hass.callWS<PanelPrefs>({ type: 'meshcore_bbs/prefs_set', prefs });
+}

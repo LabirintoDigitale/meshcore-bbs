@@ -4,6 +4,12 @@ All notable changes to **MeshCore BBS for Home Assistant** are documented here. 
 
 ## [Unreleased]
 
+## [0.8.17] - 2026-10-07
+
+### Added
+
+- **Settings → Chat → "Don't count channel messages".** When on, channels show no unread badge and are left out of the Unread filter, and opening a channel goes straight to the newest message instead of the last-read divider. Direct messages are still counted. The choice is stored in Home Assistant (applies on every device) and open panels update at once.
+
 ## [0.8.16] - 2026-10-05
 
 ### Fixed

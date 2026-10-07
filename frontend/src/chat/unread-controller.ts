@@ -132,6 +132,36 @@ export class UnreadController {
   private _subscribers = new Set<() => void>();
 
   /**
+   * Settings → "Don't count channel messages": channels show no unread
+   * badge (nor appear under the Unread filter) and open at the newest
+   * message instead of the last-read divider.
+   */
+  private _ignoreChannels = false;
+
+  get ignoreChannels(): boolean {
+    return this._ignoreChannels;
+  }
+
+  setIgnoreChannels(on: boolean): void {
+    if (this._ignoreChannels === on) return;
+    this._ignoreChannels = on;
+    // Fresh identity so `.unreadCounts=` bindings re-render the list.
+    this._counts = { ...this._counts };
+    this._notify();
+  }
+
+  /** Channel conversation id: slot entity, stable channel key or bare slot number. */
+  static isChannel(id: string | null | undefined): boolean {
+    if (!id) return false;
+    return /^\d+$/.test(id) || /_ch_\d+_messages$/.test(id) || /_chan_[kn][0-9a-z-]*_messages$/.test(id);
+  }
+
+  /** Whether opening ``entityId`` should anchor on the last-read cursor. */
+  usesReadAnchor(entityId: string | null | undefined): boolean {
+    return !(this._ignoreChannels && UnreadController.isChannel(entityId));
+  }
+
+  /**
    * Handler the panel registers to own the mark-read WS round-trip +
    * unread bookkeeping. The emitter is the read-progress mutators that
    * call `requestMarkRead`.
@@ -295,7 +325,7 @@ export class UnreadController {
    */
   beginConversation(entityId: string | null, unreadCount: number): void {
     this._clearPostSwitchTimer();
-    const anchorId = entityId ? this._lastRead[entityId] ?? null : null;
+    const anchorId = entityId && this.usesReadAnchor(entityId) ? this._lastRead[entityId] ?? null : null;
     const rp: ReadProgress = {
       entityId,
       anchorId,
@@ -375,6 +405,7 @@ export class UnreadController {
     if (!rp || rp.entityId !== entityId) return false;
     if (rp.anchorId !== null) return false;
     if (rp.markReadFired) return false;
+    if (!this.usesReadAnchor(entityId)) return false;
     const cursor = this._lastRead[entityId];
     if (!cursor) return false;
     rp.anchorId = cursor;
@@ -476,6 +507,9 @@ export class UnreadController {
     directKey?: string | null,
   ): number {
     if (!idOrSelectedId) return 0;
+    if (this._ignoreChannels && (UnreadController.isChannel(idOrSelectedId) || UnreadController.isChannel(directKey))) {
+      return 0;
+    }
     const counts = this._counts;
 
     // Direct match on a resolved entity_id (most reliable). Folds in

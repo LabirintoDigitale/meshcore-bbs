@@ -149,3 +149,23 @@ describe('switching conversation while a fetch is in flight', () => {
     expect(store.messages).toEqual([]);
   });
 });
+
+describe("don't count channel messages", () => {
+  it('hides channel badges, keeps DMs, and opens channels without the read anchor', () => {
+    const DM = 'binary_sensor.meshcore_a77aae_1d71d95287fc_messages';
+    const u = new UnreadController();
+    u.ingestBackendData({ unread: { [BASE_TEST]: 3, [BASE_SLOT1]: 2, [DM]: 1 }, last_read: { [BASE_TEST]: 'm9' } }, null);
+    expect(u.badgeCount('1', 'a77aae', BASE_TEST)).toBe(3);
+    u.setIgnoreChannels(true);
+    expect(u.badgeCount('1', 'a77aae', BASE_TEST)).toBe(0);
+    expect(u.badgeCount('1', 'a77aae')).toBe(0);
+    expect(u.badgeCount('1d71d95287fc', 'a77aae', DM)).toBe(1);
+    expect(u.usesReadAnchor(BASE_TEST)).toBe(false);
+    expect(u.usesReadAnchor(DM)).toBe(true);
+    u.beginConversation(BASE_TEST, 0);
+    expect(u.maybeReanchorOnLateData(BASE_TEST)).toBe(false);
+    u.endConversation();
+    u.setIgnoreChannels(false);
+    expect(u.badgeCount('1', 'a77aae', BASE_TEST)).toBe(3);
+  });
+});

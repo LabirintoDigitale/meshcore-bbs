@@ -1115,7 +1115,8 @@ export class ChatPage extends LitElement {
       // anchor is available (fresh install / never marked read on this
       // entity).
       const unreadCount = this._getUnreadCountForSelected();
-      const anchor = (entityId && this.lastRead?.[entityId]) || null;
+      // "Don't count channel messages": channels open at the newest message.
+      const anchor = (entityId && this.unread.usesReadAnchor(entityId) && this.lastRead?.[entityId]) || null;
       // Use 'last-read' scroll mode when EITHER the anchor or the
       // unread count is available — both the anchor-driven and the
       // count-based branch of the controller's `dividerAfterGroupIdx`

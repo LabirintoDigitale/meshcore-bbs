@@ -21,6 +21,7 @@ import { panelStyles } from '../styles';
 import { loadMeshcoreEntityRegistry, type EntityInfo } from '../utils/classify-entity';
 import '../components/bbs-settings';
 import '../components/bot-settings';
+import '../components/chat-prefs';
 
 interface ConfirmAction {
   title: string;
@@ -758,6 +759,7 @@ export class SettingsPage extends LitElement {
             ${this._error}
           </div>
           <div class="settings-container">
+            <meshcore-chat-prefs .hass=${this.hass}></meshcore-chat-prefs>
             <meshcore-bbs-settings .hass=${this.hass}></meshcore-bbs-settings>
           <meshcore-bot-settings .hass=${this.hass} .entryId=${this.config?.entry_id}></meshcore-bot-settings>
           </div>
@@ -771,6 +773,7 @@ export class SettingsPage extends LitElement {
         <div class="settings-page">
           <div class="settings-container">
             <div style="padding: 16px 0; color: var(--secondary-text-color);">No device config loaded</div>
+            <meshcore-chat-prefs .hass=${this.hass}></meshcore-chat-prefs>
             <meshcore-bbs-settings .hass=${this.hass}></meshcore-bbs-settings>
           <meshcore-bot-settings .hass=${this.hass} .entryId=${this.config?.entry_id}></meshcore-bot-settings>
           </div>
@@ -805,7 +808,8 @@ export class SettingsPage extends LitElement {
           </div>
 
           <!-- Built-in BBS (full width) -->
-          <meshcore-bbs-settings .hass=${this.hass}></meshcore-bbs-settings>
+          <meshcore-chat-prefs .hass=${this.hass}></meshcore-chat-prefs>
+            <meshcore-bbs-settings .hass=${this.hass}></meshcore-bbs-settings>
           <meshcore-bot-settings .hass=${this.hass} .entryId=${this.config?.entry_id}></meshcore-bot-settings>
 
         </div>
