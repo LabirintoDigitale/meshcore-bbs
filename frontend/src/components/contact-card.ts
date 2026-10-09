@@ -3,6 +3,14 @@ import { customElement, property } from 'lit/decorators.js';
 import type { Contact } from '../types';
 import './bbs-badge';
 
+/** "850 m", "4.2 km", "37 km"; empty when the distance is unknown. */
+export function formatDistance(km: number | null | undefined): string {
+  if (km == null || !Number.isFinite(km)) return '';
+  if (km < 1) return `${Math.round(km * 1000)} m`;
+  if (km < 10) return `${km.toFixed(1)} km`;
+  return `${Math.round(km)} km`;
+}
+
 @customElement('meshcore-contact-card')
 export class ContactCard extends LitElement {
   @property({ type: Object }) contact?: Contact;
@@ -121,7 +129,10 @@ export class ContactCard extends LitElement {
           <div class="contact-name">${c.adv_name}<meshcore-bbs-badge .pubkey=${c.pubkey_prefix}></meshcore-bbs-badge></div>
           <div class="contact-prefix">${c.pubkey_prefix}</div>
           <div class="contact-meta">
-            ${c.lastmod ? `Last heard ${new Date(c.lastmod * 1000).toLocaleString()}` : ''}
+            ${[
+              formatDistance(c.distance_km),
+              c.lastmod ? `Last heard ${new Date(c.lastmod * 1000).toLocaleString()}` : '',
+            ].filter(Boolean).join(' · ')}
           </div>
         </div>
         <span class="category-badge ${catCls}">${catLabel}</span>

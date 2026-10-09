@@ -244,6 +244,8 @@ export interface Contact {
   out_path: string;
   out_path_len: number;
   out_path_hash_mode: number;
+  /** Km from our station; set by get_contacts_paginated, null without positions. */
+  distance_km?: number | null;
   [key: string]: unknown;
 }
 

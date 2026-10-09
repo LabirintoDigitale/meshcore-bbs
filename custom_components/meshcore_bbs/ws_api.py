@@ -569,6 +569,14 @@ def _compute_type_counts(contacts: list) -> dict:
     return counts
 
 
+def _distance_from(here: tuple[float, float] | None, contact: dict) -> float | None:
+    """Distance in km from ``here`` to a contact's advert position, if both known."""
+    pos = _coord_pair(contact.get("adv_lat"), contact.get("adv_lon"))
+    if here is None or pos is None:
+        return None
+    return _distance_km(here, pos)
+
+
 @websocket_api.websocket_command(
     {
         vol.Required("type"): "meshcore_bbs/get_contacts_paginated",
@@ -634,6 +642,9 @@ async def ws_get_contacts_paginated(hass, connection, msg):
         else:
             filtered = [c for c in filtered if c.get("type") == node_type]
 
+    # Our station: the radio's advert position, else HA's home location.
+    here = radio_location(hass, _get_coordinator(hass, msg.get("entry_id")))
+
     # Sort BEFORE pagination so the visible page reflects the true top-N.
     if sort_by == "name":
         # Strip leading whitespace before lowering — some firmware emits
@@ -643,15 +654,13 @@ async def ws_get_contacts_paginated(hass, connection, msg):
     elif sort_by == "prefix":
         filtered.sort(key=lambda c: c.get("pubkey_prefix") or "")
     elif sort_by == "distance":
-        # Nearest to our radio first (its advert position, else HA's home).
-        # Nodes without a position go last, most recently heard first.
-        here = radio_location(hass, _get_coordinator(hass, msg.get("entry_id")))
-
+        # Nearest first; nodes without a position go last, most recently
+        # heard first.
         def _distance_key(c: dict) -> tuple[float, float]:
-            pos = _coord_pair(c.get("adv_lat"), c.get("adv_lon"))
-            if here is None or pos is None:
+            km = _distance_from(here, c)
+            if km is None:
                 return (math.inf, -(c.get("lastmod") or 0))
-            return (_distance_km(here, pos), 0)
+            return (km, 0)
 
         filtered.sort(key=_distance_key)
     else:
@@ -660,7 +669,10 @@ async def ws_get_contacts_paginated(hass, connection, msg):
         filtered.sort(key=lambda c: c.get("lastmod") or 0, reverse=True)
 
     total = len(filtered)
-    page = filtered[offset : offset + limit]
+    page = [
+        {**c, "distance_km": _distance_from(here, c)}
+        for c in filtered[offset : offset + limit]
+    ]
 
     connection.send_result(
         msg["id"],

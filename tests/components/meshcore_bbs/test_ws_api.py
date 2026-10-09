@@ -480,8 +480,13 @@ async def test_ws_get_contacts_paginated_sorts_by_distance(
                 "sort_by": "distance",
             },
         )
-    names = [c["adv_name"] for c in conn.results[0][1]["contacts"]]
-    assert names == ["Near", "Far", "NoPosNew", "NoPosOld"]
+    page = conn.results[0][1]["contacts"]
+    assert [c["adv_name"] for c in page] == ["Near", "Far", "NoPosNew", "NoPosOld"]
+    # Each contact carries its distance from our station (None without position)
+    assert page[0]["distance_km"] == pytest.approx(1.11, abs=0.01)
+    assert page[1]["distance_km"] == pytest.approx(111.2, abs=0.1)
+    assert page[2]["distance_km"] is None and page[3]["distance_km"] is None
+    assert "distance_km" not in contacts[0]  # source contacts left untouched
 
 
 async def test_ws_get_contacts_paginated_error_no_coordinator(
