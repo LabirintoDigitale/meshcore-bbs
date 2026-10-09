@@ -4,6 +4,10 @@ All notable changes to **MeshCore BBS for Home Assistant** are documented here. 
 
 ## [Unreleased]
 
+### Added
+
+- **Nodes → sort by "Distance".** Lists nodes nearest to your station first, measured from the companion radio's advertised position (or Home Assistant's home location when the radio has none). Nodes without a position are listed last, most recently heard first.
+
 ## [0.8.17] - 2026-10-07
 
 ### Added

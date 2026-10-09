@@ -14,6 +14,7 @@ import hashlib
 import inspect
 import json
 import logging
+import math
 import os
 import time
 from datetime import datetime
@@ -34,6 +35,7 @@ from .const import (
     ENTITY_DOMAIN_BINARY_SENSOR,
     MESHCORE_DOMAIN,
 )
+from .bot import _coord_pair, _distance_km, radio_location
 from .message_store import MessageStore
 from .channel_keys import channel_key
 from .utils import format_entity_id, parse_flood_scope_allowlist, sanitize_name
@@ -579,7 +581,7 @@ def _compute_type_counts(contacts: list) -> dict:
         vol.Optional("limit", default=50): int,
         vol.Optional("offset", default=0): int,
         vol.Optional("sort_by", default="last_heard"): vol.In(
-            ["last_heard", "name", "prefix"]
+            ["last_heard", "name", "prefix", "distance"]
         ),
     }
 )
@@ -640,6 +642,18 @@ async def ws_get_contacts_paginated(hass, connection, msg):
         filtered.sort(key=lambda c: (c.get("adv_name") or "").strip().lower())
     elif sort_by == "prefix":
         filtered.sort(key=lambda c: c.get("pubkey_prefix") or "")
+    elif sort_by == "distance":
+        # Nearest to our radio first (its advert position, else HA's home).
+        # Nodes without a position go last, most recently heard first.
+        here = radio_location(hass, _get_coordinator(hass, msg.get("entry_id")))
+
+        def _distance_key(c: dict) -> tuple[float, float]:
+            pos = _coord_pair(c.get("adv_lat"), c.get("adv_lon"))
+            if here is None or pos is None:
+                return (math.inf, -(c.get("lastmod") or 0))
+            return (_distance_km(here, pos), 0)
+
+        filtered.sort(key=_distance_key)
     else:
         # "last_heard" default — keyed on `lastmod` (not `last_advert`) so
         # firmware-emitted bogus year-2081+ values can't pin nodes to top.

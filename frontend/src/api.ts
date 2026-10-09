@@ -892,7 +892,7 @@ export async function getContactsPaginated(
     limit?: number;
     offset?: number;
     entryId?: string;
-    sortBy?: 'last_heard' | 'name' | 'prefix';
+    sortBy?: 'last_heard' | 'name' | 'prefix' | 'distance';
   } = {},
 ): Promise<PaginatedContactsResponse> {
   try {

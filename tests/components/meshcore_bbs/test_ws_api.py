@@ -453,6 +453,37 @@ async def test_ws_get_contacts_paginated_filters_and_paginates(
     assert names == sorted(names, key=str.lower)
 
 
+async def test_ws_get_contacts_paginated_sorts_by_distance(
+    hass: HomeAssistant, coordinator: MagicMock
+) -> None:
+    """Nearest first; nodes without a position last, most recent first."""
+    hass.config.latitude, hass.config.longitude = 45.0, 9.0
+    contacts = [
+        {"adv_name": "Far", "adv_lat": 46.0, "adv_lon": 9.0, "lastmod": 1},
+        {"adv_name": "NoPosOld", "adv_lat": 0, "adv_lon": 0, "lastmod": 10},
+        {"adv_name": "Near", "adv_lat": 45.01, "adv_lon": 9.0, "lastmod": 2},
+        {"adv_name": "NoPosNew", "lastmod": 20},
+    ]
+    async def _fake_call(*a, **kw):
+        return {"contacts": contacts}
+    with (
+        patch("homeassistant.core.ServiceRegistry.has_service", return_value=True),
+        patch("homeassistant.core.ServiceRegistry.async_call", side_effect=_fake_call),
+    ):
+        conn = _Connection()
+        await _call_ws(
+            ws_api.ws_get_contacts_paginated,
+            hass,
+            conn,
+            {
+                "id": 1, "category": "all", "limit": 50, "offset": 0,
+                "sort_by": "distance",
+            },
+        )
+    names = [c["adv_name"] for c in conn.results[0][1]["contacts"]]
+    assert names == ["Near", "Far", "NoPosNew", "NoPosOld"]
+
+
 async def test_ws_get_contacts_paginated_error_no_coordinator(
     hass: HomeAssistant,
 ) -> None:

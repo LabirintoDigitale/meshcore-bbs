@@ -6526,6 +6526,7 @@ let e,t,i,o,n,s,r,a,l,d,c,h,p,u,m,g,v,f,_,y,b,x,w,k,$,S,C,M,z,T,P,A,I,E,O,R,D,B,
               <option value="last_heard">Last Heard</option>
               <option value="name">Name</option>
               <option value="prefix">Pub Prefix</option>
+              <option value="distance">Distance</option>
             </select>
             <button class="clear-btn"
               @click=${0}

@@ -72,7 +72,7 @@ export class NodesPage extends LitElement {
   @state() private _pendingAction: 'add-contact' | 'remove-contact' | null = null;
 
   // ─── Sort state ─────────────────────────────────────────────────────
-  @state() private _sortBy: 'last_heard' | 'name' | 'prefix' = 'last_heard';
+  @state() private _sortBy: 'last_heard' | 'name' | 'prefix' | 'distance' = 'last_heard';
 
   private _searchTimer?: ReturnType<typeof setTimeout>;
 
@@ -485,12 +485,13 @@ export class NodesPage extends LitElement {
             <select class="sort-select"
               .value=${this._sortBy}
               @change=${(e: Event) => {
-                this._sortBy = (e.target as HTMLSelectElement).value as 'last_heard' | 'name' | 'prefix';
+                this._sortBy = (e.target as HTMLSelectElement).value as 'last_heard' | 'name' | 'prefix' | 'distance';
                 this._loadPage(true);
               }}>
               <option value="last_heard">Last Heard</option>
               <option value="name">Name</option>
               <option value="prefix">Pub Prefix</option>
+              <option value="distance">Distance</option>
             </select>
             <button class="clear-btn"
               @click=${() => this._clearStaleContacts()}
