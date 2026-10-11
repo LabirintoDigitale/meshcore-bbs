@@ -1344,6 +1344,25 @@ export class DevicesPage extends LitElement {
    * The tab is opened now, while still inside the click, so popup blockers
    * allow it; it is pointed at the page once the reply arrives.
    */
+  /**
+   * Positions Home Assistant knows (from adverts the companion heard), for the
+   * repeater's debug page: in the URL fragment, so they stay in the browser and
+   * are never sent over the radio or to the repeater. The page uses them for
+   * nodes whose advert the repeater has not received yet.
+   */
+  private _knownPositionsFragment(): string {
+    const parts: string[] = [];
+    for (const c of Object.values(this._contactsByPrefix)) {
+      const lat = Number(c.adv_lat);
+      const lon = Number(c.adv_lon);
+      const key = (c.public_key || c.pubkey_prefix || '').slice(0, 12).toUpperCase();
+      if (key.length < 12 || !Number.isFinite(lat) || !Number.isFinite(lon) || (lat === 0 && lon === 0)) continue;
+      parts.push(`${key},${lat.toFixed(5)},${lon.toFixed(5)},${encodeURIComponent(String(c.adv_name || c.name || ''))}`);
+      if (parts.length >= 2000) break;
+    }
+    return parts.length ? `#loc=${parts.join(';')}` : '';
+  }
+
   private async _openRepeaterWebPage(device: ManagedDevice, command: string, label: string) {
     const tab = window.open('', '_blank');
     if (tab) {
@@ -1357,8 +1376,13 @@ export class DevicesPage extends LitElement {
       tab?.close();
       return;
     }
-    if (tab && !tab.closed) tab.location.href = url;
-    this._showStatusMessage(`${device.name}: ${reply}`, 'success', url);
+    let target = url;
+    if (command === 'start debug') {
+      if (!Object.keys(this._contactsByPrefix).length) await this._loadContacts();
+      target += this._knownPositionsFragment();
+    }
+    if (tab && !tab.closed) tab.location.href = target;
+    this._showStatusMessage(`${device.name}: ${reply}`, 'success', target);
   }
 
   private _renderRemoteButton(device: ManagedDevice, command: string, label: string, isOnline: boolean) {

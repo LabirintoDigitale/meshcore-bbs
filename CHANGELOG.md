@@ -4,6 +4,12 @@ All notable changes to **MeshCore BBS for Home Assistant** are documented here. 
 
 ## [Unreleased]
 
+## [0.8.23] - 2026-10-11
+
+### Added
+
+- **Start Node Debug hands Home Assistant's node positions to the repeater's debug page.** The page opens with the positions of the nodes Home Assistant knows (from adverts heard by the companion radio) in the URL fragment, which stays in the browser: nothing is sent over the radio or to the repeater. The debug page (MBBS repeater firmware) uses them for nodes whose advert the repeater has not received yet, so their distance, bearing and direction arrow appear right away, marked "da HA".
+
 ## [0.8.22] - 2026-10-11
 
 ### Fixed
