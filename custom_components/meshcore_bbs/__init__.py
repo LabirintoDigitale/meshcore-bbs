@@ -139,7 +139,7 @@ from .ws_api import async_register_ws_commands  # noqa: E402
 from .route_ws import async_register_route_commands  # noqa: E402
 from .telemetry_ws import async_register_telemetry_commands  # noqa: E402
 from .radio_ws import async_register_radio_commands  # noqa: E402
-from .mbbs_caps import MbbsCaps  # noqa: E402
+from .mbbs_caps import MbbsCaps, async_register_mbbs_commands  # noqa: E402
 
 
 async def async_setup_entry(
@@ -278,6 +278,7 @@ async def async_setup_entry(
         async_register_radio_commands(hass)
         async_register_bot_commands(hass)
         async_register_prefs_commands(hass)
+        async_register_mbbs_commands(hass)
         bucket["_ws_registered"] = True
 
     # One-shot detection of the upstream meshcore service surface this

@@ -7,9 +7,12 @@ soon as the repeater replies with their address, and to offer *Start Node
 Debug* next to *Start OTA Update*.
 
 Each managed repeater is asked once per Home Assistant start, in the
-background and one at a time so the mesh is not flooded; repeaters that did
-not answer are retried later. The last answer is persisted so the panel knows
-it right after a restart, before the new probe completes.
+background and one at a time so the mesh is not flooded, as soon as its radio
+is connected; repeaters that could not be asked or did not answer (radio still
+connecting, repeater out of reach, added later) are retried every 10 minutes.
+The panel also asks when its settings menu is opened and the answer is not
+known yet. The last answer is persisted so the panel knows it right after a
+restart, before the new probe completes.
 """
 from __future__ import annotations
 
@@ -18,6 +21,8 @@ import logging
 import re
 from typing import Any
 
+import voluptuous as vol
+from homeassistant.components import websocket_api
 from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.helpers.storage import Store
 
@@ -30,7 +35,7 @@ PROBE_COMMAND = "isMBBS"
 PROBE_REPLY_TIMEOUT = 30          # seconds to wait for the repeater's reply
 PROBE_START_DELAY = 90            # let the radio connect and load contacts first
 PROBE_SPACING = 20                # between two repeaters
-PROBE_RETRY_INTERVAL = 30 * 60    # retry repeaters that did not answer
+PROBE_RETRY_INTERVAL = 10 * 60    # retry repeaters that did not answer yet
 
 
 def _clean(value: Any) -> str:
@@ -63,6 +68,7 @@ class MbbsCaps:
         self.hass = hass
         self._store: Store = Store(hass, STORAGE_VERSION, STORAGE_KEY_MBBS)
         self._caps: dict[str, bool] = {}
+        self._answered: set[str] = set()   # answered since this HA start
 
     async def async_load(self) -> None:
         data = await self._store.async_load()
@@ -96,36 +102,29 @@ class MbbsCaps:
             return None
         value = is_mbbs_reply(reply)
         self.set(pubkey_prefix, value)
+        self._answered.add(_clean(pubkey_prefix))
         _LOGGER.debug("Repeater %s isMBBS -> %s (reply %r)", pubkey_prefix, value, reply)
         return value
 
     async def async_probe_loop(self) -> None:
-        """Probe every managed repeater after startup, then retry the silent ones."""
+        """Ask every managed repeater once per HA start; retry the ones not reached yet."""
         from .ws_api import _get_all_coordinators  # avoid an import cycle
 
         await asyncio.sleep(PROBE_START_DELAY)
-        pending: set[str] | None = None   # None = first round: ask everyone
         while True:
-            unanswered: set[str] = set()
             for coordinator in _get_all_coordinators(self.hass):
                 if not getattr(coordinator.api, "connected", False):
                     continue
                 for repeater in list(coordinator._tracked_repeaters):
                     configured = str(repeater.get("pubkey_prefix") or "")   # as the device lookup expects it
                     prefix = _clean(configured)
-                    if not prefix or (pending is not None and prefix not in pending):
+                    if not prefix or prefix in self._answered:
                         continue
                     try:
-                        result = await self.async_probe(coordinator, configured)
+                        await self.async_probe(coordinator, configured)
                     except Exception as ex:  # pragma: no cover - radio/SDK failures
                         _LOGGER.debug("isMBBS probe of %s failed: %s", prefix, ex)
-                        result = None
-                    if result is None:
-                        unanswered.add(prefix)
                     await asyncio.sleep(PROBE_SPACING)
-            if not unanswered:
-                return
-            pending = unanswered
             await asyncio.sleep(PROBE_RETRY_INTERVAL)
 
 
@@ -159,3 +158,34 @@ async def async_command_reply(hass: HomeAssistant, pubkey_prefix: str, send, tim
 
 def get_mbbs_caps(hass: HomeAssistant) -> MbbsCaps | None:
     return hass.data.get(DOMAIN, {}).get("mbbs_caps")
+
+
+@callback
+def async_register_mbbs_commands(hass: HomeAssistant) -> None:
+    websocket_api.async_register_command(hass, ws_mbbs_probe)
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): "meshcore_bbs/mbbs_probe",
+        vol.Optional("entry_id"): str,
+        vol.Required("target_prefix"): str,
+    }
+)
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_mbbs_probe(hass, connection, msg):
+    """Ask one managed repeater now whether it runs the MBBS firmware."""
+    from .ws_api import RemoteCommandError, _get_coordinator  # avoid an import cycle
+
+    caps = get_mbbs_caps(hass)
+    coordinator = _get_coordinator(hass, msg.get("entry_id"))
+    if caps is None or coordinator is None:
+        connection.send_error(msg["id"], "not_found", "No MeshCore coordinator found")
+        return
+    try:
+        value = await caps.async_probe(coordinator, msg["target_prefix"])
+    except RemoteCommandError as ex:
+        connection.send_error(msg["id"], ex.code, str(ex))
+        return
+    connection.send_result(msg["id"], {"is_mbbs": value})

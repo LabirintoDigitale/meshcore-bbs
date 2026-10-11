@@ -85,6 +85,8 @@ export class DevicesPage extends LitElement {
 
   // Settings modal: which device key's settings modal is open
   @state() private _settingsDeviceKey: string | null = null;
+  /** Repeaters already asked "isMBBS" from this panel (once per page load). */
+  private _mbbsAsked = new Set<string>();
 
   // Hidden sensors list modal: which device key's hidden list is showing
   @state() private _hiddenSensorsModalKey: string | null = null;
@@ -970,7 +972,7 @@ export class DevicesPage extends LitElement {
             </div>
           </div>
           <div style="display:flex;align-items:center;gap:4px;">
-            <button class="settings-btn" @click=${() => this._settingsDeviceKey = deviceKey} title="Device settings" aria-label="Device settings">
+            <button class="settings-btn" @click=${() => { this._settingsDeviceKey = deviceKey; if (type === 'repeater') this._probeMbbs(device); }} title="Device settings" aria-label="Device settings">
               <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 00.12-.61l-1.92-3.32a.49.49 0 00-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 00-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.49.49 0 00-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58a.49.49 0 00-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
             </button>
             <div class="status-badge ${statusClass}"
@@ -1699,6 +1701,31 @@ export class DevicesPage extends LitElement {
       }
     }
     return null;
+  }
+
+  /**
+   * Ask a repeater whether it runs the MBBS firmware when Home Assistant has
+   * no "yes" yet (the background check may not have reached it). At most once
+   * per page load; "Start Node Debug" appears as soon as it answers.
+   */
+  private async _probeMbbs(device: ManagedDevice) {
+    if (!this.hass || device.is_mbbs === true || this._mbbsAsked.has(device.pubkey_prefix)) return;
+    this._mbbsAsked.add(device.pubkey_prefix);
+    try {
+      const res = await this.hass.callWS<{ is_mbbs: boolean | null }>({
+        type: 'meshcore_bbs/mbbs_probe',
+        ...(this.config?.entry_id ? { entry_id: this.config.entry_id } : {}),
+        target_prefix: device.pubkey_prefix,
+      });
+      if (res.is_mbbs == null) return;
+      this._managedDevices = {
+        ...this._managedDevices,
+        repeaters: this._managedDevices.repeaters.map(r =>
+          r.pubkey_prefix === device.pubkey_prefix ? { ...r, is_mbbs: res.is_mbbs } : r),
+      };
+    } catch {
+      /* no answer: the background check keeps trying */
+    }
   }
 
   private _closeSettingsModal() {

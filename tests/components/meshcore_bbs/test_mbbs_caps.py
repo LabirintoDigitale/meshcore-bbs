@@ -83,3 +83,16 @@ async def test_probe_without_answer_keeps_old_value(hass: HomeAssistant, monkeyp
     monkeypatch.setattr(mod, "async_command_reply", silent)
     assert await caps.async_probe(MagicMock(), "aaaa") is None
     assert caps.get("aaaa") is True
+
+
+async def test_answered_repeaters_are_not_asked_again(hass: HomeAssistant, monkeypatch) -> None:
+    caps = MbbsCaps(hass)
+    await caps.async_load()
+
+    async def reply(hass_, prefix, send, timeout=30):
+        return "true" if prefix.lower() == "aaaa" else None
+
+    monkeypatch.setattr(mod, "async_command_reply", reply)
+    await caps.async_probe(MagicMock(), "AAAA")
+    await caps.async_probe(MagicMock(), "bbbb")
+    assert caps._answered == {"aaaa"}   # bbbb stays pending for the retry rounds

@@ -4,6 +4,12 @@ All notable changes to **MeshCore BBS for Home Assistant** are documented here. 
 
 ## [Unreleased]
 
+## [0.8.21] - 2026-10-11
+
+### Fixed
+
+- **MBBS repeater detection could stop for good.** The background `isMBBS` check ran once, 90 s after startup: if the companion radio was not connected yet (or the managed repeaters were not loaded), it found nothing to ask and never ran again, so *Start Node Debug* never appeared. It now retries every 10 minutes for repeaters that have not answered since startup (including ones added later), and opening a repeater's settings menu asks it right away when Home Assistant has no "yes" yet; *Start Node Debug* appears as soon as it answers.
+
 ## [0.8.20] - 2026-10-11
 
 ### Added
