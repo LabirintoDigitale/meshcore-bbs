@@ -139,6 +139,7 @@ from .ws_api import async_register_ws_commands  # noqa: E402
 from .route_ws import async_register_route_commands  # noqa: E402
 from .telemetry_ws import async_register_telemetry_commands  # noqa: E402
 from .radio_ws import async_register_radio_commands  # noqa: E402
+from .mbbs_caps import MbbsCaps  # noqa: E402
 
 
 async def async_setup_entry(
@@ -255,6 +256,16 @@ async def async_setup_entry(
         prefs = PanelPrefs(hass)
         await prefs.async_load()
         bucket["prefs"] = prefs
+
+    # Which managed repeaters run the MBBS firmware (isMBBS -> true): asked
+    # in the background after startup, last answers persisted.
+    if "mbbs_caps" not in bucket:
+        caps = MbbsCaps(hass)
+        await caps.async_load()
+        bucket["mbbs_caps"] = caps
+        entry.async_create_background_task(
+            hass, caps.async_probe_loop(), "meshcore_bbs isMBBS probe"
+        )
 
     # Register WS commands once (idempotent registration would be ideal but
     # HA's websocket_api raises on duplicate types — guard with a flag on the

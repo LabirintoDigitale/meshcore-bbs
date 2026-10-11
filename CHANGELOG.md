@@ -4,6 +4,16 @@ All notable changes to **MeshCore BBS for Home Assistant** are documented here. 
 
 ## [Unreleased]
 
+## [0.8.19] - 2026-10-11
+
+### Added
+
+- **Repeaters running the MBBS firmware.** A repeater whose firmware answers the CLI command `isMBBS` with `true` serves its own web pages over WiFi. Home Assistant asks every managed repeater once after startup (in the background, one at a time; repeaters that don't answer are asked again every 30 minutes) and remembers the answer across restarts. For those repeaters the device settings menu changes:
+  - **Start OTA Update** opens a new tab that goes straight to the repeater's update page as soon as it replies with its address.
+  - **Start Node Debug** (new, below it) does the same for the repeater's debug page: heard nodes, discover, trace.
+  - If the browser blocks the new tab, the status message shows an **Open page** link for 60 seconds.
+  Repeaters with the stock firmware behave as before.
+
 ## [0.8.18] - 2026-10-09
 
 ### Added

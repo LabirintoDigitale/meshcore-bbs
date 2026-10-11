@@ -37,6 +37,7 @@ from .const import (
 )
 from .bot import _coord_pair, _distance_km, radio_location
 from .message_store import MessageStore
+from .mbbs_caps import get_mbbs_caps
 from .channel_keys import channel_key
 from .utils import format_entity_id, parse_flood_scope_allowlist, sanitize_name
 
@@ -920,6 +921,7 @@ def ws_get_managed_devices(hass, connection, msg):
 
     repeaters = []
     clients = []
+    caps = get_mbbs_caps(hass)
     dev_reg = dr.async_get(hass)
     entry_id = coordinator.config_entry.entry_id
     now = time.time()
@@ -979,6 +981,7 @@ def ws_get_managed_devices(hass, connection, msg):
                     sanitize_name(repeater_name),
                 ),
                 "firmware_version": fw_version,
+                "is_mbbs": caps.get(pubkey_prefix) if caps else None,
                 "stats": stats,
             }
         )
@@ -1615,6 +1618,71 @@ async def ws_execute_local(hass, connection, msg):
 # Execute a CLI command on a managed device with auto-login
 
 
+class RemoteCommandError(Exception):
+    """A managed device or its contact is unknown; ``code`` is the WS error code."""
+
+    def __init__(self, code: str, message: str) -> None:
+        super().__init__(message)
+        self.code = code
+
+
+async def async_send_remote_command(coordinator, target_prefix: str, command: str) -> str:
+    """Log in to a managed device (when it has a password) and send a CLI command.
+
+    Returns the send result text. The device's own reply arrives later as a
+    direct message (``meshcore_message`` event).
+    """
+    # Find the device by pubkey_prefix in tracked repeaters and clients
+    device = None
+    password = None
+
+    for repeater in coordinator._tracked_repeaters:
+        if repeater.get("pubkey_prefix") == target_prefix:
+            device = repeater
+            password = repeater.get("password")
+            break
+
+    if not device:
+        for client in coordinator._tracked_clients:
+            if client.get("pubkey_prefix") == target_prefix:
+                device = client
+                break
+
+    if not device:
+        raise RemoteCommandError("not_found", f"Device not found: {target_prefix}")
+
+    # Get the contact for this device
+    contact = coordinator.api.mesh_core.get_contact_by_key_prefix(target_prefix)
+    if not contact:
+        raise RemoteCommandError("not_found", f"Contact not found for device: {target_prefix}")
+
+    # Send login if password is available. send_login_sync blocks
+    # until the node confirms login (LOGIN_SUCCESS) or the request
+    # times out. A None return means login was not confirmed —
+    # on the simple_repeater firmware a wrong password and a
+    # transient timeout are indistinguishable on the wire (the
+    # node silently ignores a bad login rather than emitting
+    # LOGIN_FAILED), so we proceed with the command and annotate
+    # the response so the user knows the login wasn't confirmed.
+    login_unconfirmed = False
+    if password:
+        login_result = await coordinator.api.mesh_core.commands.send_login_sync(
+            contact, password
+        )
+        login_unconfirmed = login_result is None
+
+    # Send the command
+    cmd_result = await coordinator.api.mesh_core.commands.send_cmd(
+        contact, command
+    )
+
+    # Extract meaningful text from Event objects
+    resp_text = _format_event_response(cmd_result)
+    if login_unconfirmed:
+        resp_text = f"Login not confirmed — {resp_text}"
+    return resp_text
+
+
 @websocket_api.websocket_command(
     {
         vol.Required("type"): "meshcore_bbs/execute_remote",
@@ -1636,71 +1704,13 @@ async def ws_execute_remote(hass, connection, msg):
     command = msg.get("command")
 
     try:
-        # Find the device by pubkey_prefix in tracked repeaters and clients
-        device = None
-        password = None
-
-        for repeater in coordinator._tracked_repeaters:
-            if repeater.get("pubkey_prefix") == target_prefix:
-                device = repeater
-                password = repeater.get("password")
-                break
-
-        if not device:
-            for client in coordinator._tracked_clients:
-                if client.get("pubkey_prefix") == target_prefix:
-                    device = client
-                    break
-
-        if not device:
-            connection.send_error(
-                msg["id"],
-                "not_found",
-                f"Device not found: {target_prefix}",
-            )
-            return
-
-        # Get the contact for this device
-        contact = coordinator.api.mesh_core.get_contact_by_key_prefix(target_prefix)
-        if not contact:
-            connection.send_error(
-                msg["id"],
-                "not_found",
-                f"Contact not found for device: {target_prefix}",
-            )
-            return
-
-        # Send login if password is available. send_login_sync blocks
-        # until the node confirms login (LOGIN_SUCCESS) or the request
-        # times out. A None return means login was not confirmed —
-        # on the simple_repeater firmware a wrong password and a
-        # transient timeout are indistinguishable on the wire (the
-        # node silently ignores a bad login rather than emitting
-        # LOGIN_FAILED), so we proceed with the command and annotate
-        # the response so the user knows the login wasn't confirmed.
-        login_unconfirmed = False
-        if password:
-            login_result = await coordinator.api.mesh_core.commands.send_login_sync(
-                contact, password
-            )
-            login_unconfirmed = login_result is None
-
-        # Send the command
-        cmd_result = await coordinator.api.mesh_core.commands.send_cmd(
-            contact, command
-        )
-
-        timestamp = datetime.now().isoformat()
-
-        # Extract meaningful text from Event objects
-        resp_text = _format_event_response(cmd_result)
-        if login_unconfirmed:
-            resp_text = f"Login not confirmed — {resp_text}"
-
+        resp_text = await async_send_remote_command(coordinator, target_prefix, command)
         connection.send_result(
             msg["id"],
-            {"response": resp_text, "success": True, "timestamp": timestamp},
+            {"response": resp_text, "success": True, "timestamp": datetime.now().isoformat()},
         )
+    except RemoteCommandError as ex:
+        connection.send_error(msg["id"], ex.code, str(ex))
     except Exception as ex:
         _ws_send_error_safe(
             connection,

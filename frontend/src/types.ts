@@ -301,6 +301,8 @@ export interface ManagedDevice {
   status?: 'online' | 'offline' | 'unknown';
   status_entity_id?: string;
   firmware_version?: string;
+  /** Runs the MBBS repeater firmware (answers isMBBS): web OTA and Node Debug pages. */
+  is_mbbs?: boolean | null;
   stats?: Record<string, unknown>;
   type: 'repeater' | 'client';
 }

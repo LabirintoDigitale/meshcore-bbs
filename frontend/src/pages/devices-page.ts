@@ -57,7 +57,7 @@ export class DevicesPage extends LitElement {
   @state() private _commandDialogOpen = false;
   @state() private _commandDialogTarget = '';
   @state() private _commandDialogIsLocal = false;
-  @state() private _statusMessage: { text: string; type: 'success' | 'error' } | null = null;
+  @state() private _statusMessage: { text: string; type: 'success' | 'error'; url?: string } | null = null;
   @state() private _statusMessageTimeout: number | null = null;
   // "<pubkey_prefix>:<command>" of remote actions in flight.
   @state() private _remoteBusy: Set<string> = new Set();
@@ -481,6 +481,7 @@ export class DevicesPage extends LitElement {
       }
 
       .status-toast.success { border-left: 4px solid #4caf50; }
+      .status-toast a { color: var(--primary-color); font-weight: 600; margin-left: 6px; }
       .status-toast.error { border-left: 4px solid var(--error-color, #db4437); color: var(--error-color, #db4437); }
 
       @keyframes slideIn {
@@ -841,10 +842,22 @@ export class DevicesPage extends LitElement {
 
               <!-- Start OTA (repeaters only) -->
               ${ctx.type === 'repeater' ? html`
-                <button class="modal-action danger" ?disabled=${!ctx.isOnline} @click=${() => { this._closeSettingsModal(); this._confirmActionDialog(`Start OTA on ${ctx.name}?`, 'The device will enter update mode.', () => this._executeRemoteAction(ctx.device!, 'start ota')); }}>
+                <button class="modal-action danger" ?disabled=${!ctx.isOnline} @click=${() => {
+                  const device = ctx.device!;
+                  this._closeSettingsModal();
+                  this._confirmActionDialog(`Start OTA on ${ctx.name}?`,
+                    device.is_mbbs ? 'The repeater joins WiFi and its update page opens in a new tab.' : 'The device will enter update mode.',
+                    () => device.is_mbbs ? this._openRepeaterWebPage(device, 'start ota', 'OTA update') : this._executeRemoteAction(device, 'start ota'));
+                }}>
                   <span class="modal-action-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M5 18h14v2H5v-2zm4.6-2.7L5 10.7l2-1.9 2.6 2.6L17 4l2 2-9.4 9.3z"/></svg></span>
                   Start OTA Update
                 </button>
+                ${ctx.device!.is_mbbs ? html`
+                  <button class="modal-action" ?disabled=${!ctx.isOnline} @click=${() => { const device = ctx.device!; this._closeSettingsModal(); this._openRepeaterWebPage(device, 'start debug', 'Node debug'); }}>
+                    <span class="modal-action-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M20 8h-2.81a5.985 5.985 0 00-1.82-1.96L17 4.41 15.59 3l-2.17 2.17a6.002 6.002 0 00-2.83 0L8.41 3 7 4.41l1.62 1.63C7.88 6.55 7.26 7.22 6.81 8H4v2h2.09c-.05.33-.09.66-.09 1v1H4v2h2v1c0 .34.04.67.09 1H4v2h2.81c1.04 1.79 2.97 3 5.19 3s4.15-1.21 5.19-3H20v-2h-2.09c.05-.33.09-.66.09-1v-1h2v-2h-2v-1c0-.34-.04-.67-.09-1H20V8zm-6 8h-4v-2h4v2zm0-4h-4v-2h4v2z"/></svg></span>
+                    Start Node Debug
+                  </button>
+                ` : nothing}
               ` : nothing}
             </div>
           </div>
@@ -856,7 +869,8 @@ export class DevicesPage extends LitElement {
 
       <!-- Status Toast -->
       ${this._statusMessage
-        ? html`<div class="status-toast ${this._statusMessage.type}">${this._statusMessage.type === 'success' ? '✓ ' : '✗ '}${this._statusMessage.text}</div>`
+        ? html`<div class="status-toast ${this._statusMessage.type}">${this._statusMessage.type === 'success' ? '✓ ' : '✗ '}${this._statusMessage.text}${this._statusMessage.url
+            ? html`<a href=${this._statusMessage.url} target="_blank" rel="noopener">Open page</a>` : nothing}</div>`
         : nothing}
     `;
   }
@@ -1230,12 +1244,13 @@ export class DevicesPage extends LitElement {
    * Run a CLI command on a managed device (login + command). The SDK only
    * confirms that the command left our radio; the device's own reply (e.g.
    * "OK - Advert sent") arrives later as a direct message, so wait up to
-   * REMOTE_REPLY_TIMEOUT_MS for it and show it.
+   * REMOTE_REPLY_TIMEOUT_MS for it and show it. Resolves to that reply, or
+   * null when the command failed or nothing came back.
    */
-  private async _executeRemoteAction(device: ManagedDevice, command: string) {
-    if (!this.hass) return;
+  private async _executeRemoteAction(device: ManagedDevice, command: string): Promise<string | null> {
+    if (!this.hass) return null;
     const key = `${device.pubkey_prefix}:${command}`;
-    if (this._remoteBusy.has(key)) return;
+    if (this._remoteBusy.has(key)) return null;
     this._remoteBusy = new Set(this._remoteBusy).add(key);
     this._showStatusMessage(`${device.name}: sending "${command}"…`, 'success');
 
@@ -1263,7 +1278,7 @@ export class DevicesPage extends LitElement {
       // error only happens for client-side exceptions (caught below).
       if (!result.success) {
         this._showStatusMessage(`${device.name}: ${command} failed — ${result.response || 'error'}`, 'error');
-        return;
+        return null;
       }
       // result.response is the send result, e.g. "Command sent" or
       // "Login not confirmed — Command sent".
@@ -1277,14 +1292,39 @@ export class DevicesPage extends LitElement {
           `${device.name}: ${command} → ${sent} — no reply within ${REMOTE_REPLY_TIMEOUT_MS / 1000} s ` +
           `(it may still arrive in the device's chat)`, 'error');
       }
+      return text;
     } catch (error) {
       this._showStatusMessage(`${device.name}: ${command} failed — ${String(error)}`, 'error');
+      return null;
     } finally {
       unsub?.();
       const next = new Set(this._remoteBusy);
       next.delete(key);
       this._remoteBusy = next;
     }
+  }
+
+  /**
+   * "start ota" / "start debug" on a repeater running the MBBS firmware: it
+   * joins WiFi and replies with the page address, which opens right away.
+   * The tab is opened now, while still inside the click, so popup blockers
+   * allow it; it is pointed at the page once the reply arrives.
+   */
+  private async _openRepeaterWebPage(device: ManagedDevice, command: string, label: string) {
+    const tab = window.open('', '_blank');
+    if (tab) {
+      tab.document.title = label;
+      tab.document.body.style.font = '15px system-ui, sans-serif';
+      tab.document.body.textContent = `${label}: waiting for ${device.name} to join WiFi and send its address…`;
+    }
+    const reply = await this._executeRemoteAction(device, command);
+    const url = reply?.match(/https?:\/\/[^\s)]+/)?.[0];
+    if (!url) {
+      tab?.close();
+      return;
+    }
+    if (tab && !tab.closed) tab.location.href = url;
+    this._showStatusMessage(`${device.name}: ${reply}`, 'success', url);
   }
 
   private _renderRemoteButton(device: ManagedDevice, command: string, label: string, isOnline: boolean) {
@@ -1681,13 +1721,13 @@ export class DevicesPage extends LitElement {
 
   // ─── Utilities ────────────────────────────────────────────────────
 
-  private _showStatusMessage(text: string, type: 'success' | 'error') {
-    this._statusMessage = { text, type };
+  private _showStatusMessage(text: string, type: 'success' | 'error', url?: string) {
+    this._statusMessage = { text, type, url };
     if (this._statusMessageTimeout !== null) clearTimeout(this._statusMessageTimeout);
     this._statusMessageTimeout = window.setTimeout(() => {
       this._statusMessage = null;
       this._statusMessageTimeout = null;
-    }, 5000);
+    }, url ? 60000 : 5000);
   }
 
   private _formatRelativeTime(timestamp: string): string {
