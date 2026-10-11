@@ -1618,6 +1618,28 @@ async def ws_execute_local(hass, connection, msg):
 # Execute a CLI command on a managed device with auto-login
 
 
+# One CLI command at a time per managed device: two logins/commands in flight to the
+# same repeater (e.g. the isMBBS check and a panel command) can stall the radio and
+# hand one command's reply to the other. The panel keeps listening for a reply for up
+# to REMOTE_REPLY_WINDOW seconds after sending, so background probes leave that gap.
+REMOTE_REPLY_WINDOW = 60.0
+_remote_locks: dict[str, asyncio.Lock] = {}
+_last_remote_command: dict[str, float] = {}
+
+
+def _device_key(prefix: str) -> str:
+    return "".join(ch for ch in str(prefix or "").lower() if ch in "0123456789abcdef")[:12]
+
+
+def remote_device_lock(prefix: str) -> asyncio.Lock:
+    return _remote_locks.setdefault(_device_key(prefix), asyncio.Lock())
+
+
+def seconds_since_remote_command(prefix: str) -> float:
+    sent = _last_remote_command.get(_device_key(prefix))
+    return float("inf") if sent is None else time.monotonic() - sent
+
+
 class RemoteCommandError(Exception):
     """A managed device or its contact is unknown; ``code`` is the WS error code."""
 
@@ -1704,7 +1726,9 @@ async def ws_execute_remote(hass, connection, msg):
     command = msg.get("command")
 
     try:
-        resp_text = await async_send_remote_command(coordinator, target_prefix, command)
+        async with remote_device_lock(target_prefix):
+            resp_text = await async_send_remote_command(coordinator, target_prefix, command)
+            _last_remote_command[_device_key(target_prefix)] = time.monotonic()
         connection.send_result(
             msg["id"],
             {"response": resp_text, "success": True, "timestamp": datetime.now().isoformat()},

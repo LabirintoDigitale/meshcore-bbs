@@ -96,3 +96,25 @@ async def test_answered_repeaters_are_not_asked_again(hass: HomeAssistant, monke
     await caps.async_probe(MagicMock(), "AAAA")
     await caps.async_probe(MagicMock(), "bbbb")
     assert caps._answered == {"aaaa"}   # bbbb stays pending for the retry rounds
+
+
+async def test_probe_waits_for_a_recent_panel_command(hass: HomeAssistant, monkeypatch) -> None:
+    from custom_components.meshcore_bbs import ws_api
+
+    caps = MbbsCaps(hass)
+    await caps.async_load()
+    since = iter([5.0, 999.0, 999.0])
+    slept = []
+
+    async def fake_sleep(seconds):
+        slept.append(seconds)
+
+    async def reply(hass_, prefix, send, timeout=30):
+        return "true"
+
+    monkeypatch.setattr(ws_api, "seconds_since_remote_command", lambda prefix: next(since))
+    monkeypatch.setattr(mod.asyncio, "sleep", fake_sleep)
+    monkeypatch.setattr(mod, "async_command_reply", reply)
+    assert await caps.async_probe(MagicMock(), "aaaa") is True
+    assert slept == [ws_api.REMOTE_REPLY_WINDOW - 5.0]   # waited out the panel's reply window
+    assert not ws_api.remote_device_lock("aaaa").locked()

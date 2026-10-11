@@ -4,6 +4,13 @@ All notable changes to **MeshCore BBS for Home Assistant** are documented here. 
 
 ## [Unreleased]
 
+## [0.8.22] - 2026-10-11
+
+### Fixed
+
+- **Commands to a managed device no longer overlap.** The background `isMBBS` check and the commands sent from the panel could log in and send to the same repeater at the same time; the radio could then stall (commands stuck on "executing") and one command's reply could be taken as the other's. Commands to the same device now go one at a time, and the `isMBBS` check waits until the reply window of a command sent from the panel (60 s) has passed, without holding up other commands meanwhile.
+- **Reply timeout starts when the command is sent.** A command that had to wait for the device to be free no longer runs out of time before it has even left.
+
 ## [0.8.21] - 2026-10-11
 
 ### Fixed

@@ -91,13 +91,33 @@ class MbbsCaps:
         self._store.async_delay_save(lambda: dict(self._caps), 1)
 
     async def async_probe(self, coordinator, pubkey_prefix: str) -> bool | None:
-        """Ask one repeater; returns None (and keeps the old value) when it does not answer."""
-        from .ws_api import async_send_remote_command  # avoid an import cycle
+        """Ask one repeater; returns None (and keeps the old value) when it does not answer.
 
-        reply = await async_command_reply(
-            self.hass, pubkey_prefix,
-            lambda: async_send_remote_command(coordinator, pubkey_prefix, PROBE_COMMAND),
+        Holds the device's command lock while waiting for the reply, and first lets
+        the reply window of a command sent from the panel run out, so the two
+        never overlap and each reply reaches whoever asked.
+        """
+        from .ws_api import (  # avoid an import cycle
+            REMOTE_REPLY_WINDOW,
+            async_send_remote_command,
+            remote_device_lock,
+            seconds_since_remote_command,
         )
+
+        while True:
+            # wait outside the lock, so panel commands are not held up meanwhile
+            wait = REMOTE_REPLY_WINDOW - seconds_since_remote_command(pubkey_prefix)
+            if wait > 0:
+                await asyncio.sleep(wait)
+                continue
+            async with remote_device_lock(pubkey_prefix):
+                if seconds_since_remote_command(pubkey_prefix) < REMOTE_REPLY_WINDOW:
+                    continue   # a panel command got in first
+                reply = await async_command_reply(
+                    self.hass, pubkey_prefix,
+                    lambda: async_send_remote_command(coordinator, pubkey_prefix, PROBE_COMMAND),
+                )
+            break
         if reply is None:
             return None
         value = is_mbbs_reply(reply)

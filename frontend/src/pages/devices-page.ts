@@ -1286,8 +1286,12 @@ export class DevicesPage extends LitElement {
     // Subscribe before sending so a fast reply isn't missed.
     const prefix = device.pubkey_prefix.toLowerCase();
     let unsub: (() => void) | undefined;
+    // The timeout starts once the command has left (it may first wait for an
+    // isMBBS check already talking to this device).
+    let startReplyTimer = () => {};
     const reply = new Promise<string | null>((resolve) => {
-      const timer = window.setTimeout(() => resolve(null), replyTimeoutMs);
+      let timer = 0;
+      startReplyTimer = () => { timer = window.setTimeout(() => resolve(null), replyTimeoutMs); };
       this.hass!.connection
         .subscribeEvents((event) => {
           const d = event.data as Record<string, unknown>;
@@ -1311,6 +1315,7 @@ export class DevicesPage extends LitElement {
       }
       // result.response is the send result, e.g. "Command sent" or
       // "Login not confirmed — Command sent".
+      startReplyTimer();
       const sent = result.response || 'OK';
       this._showStatusMessage(`${device.name}: ${command} → ${sent} — waiting for the reply…`, 'success');
       const text = await reply;
