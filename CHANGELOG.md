@@ -4,6 +4,16 @@ All notable changes to **MeshCore BBS for Home Assistant** are documented here. 
 
 ## [Unreleased]
 
+## [0.8.20] - 2026-10-11
+
+### Added
+
+- **Devices → Neighbors: remove stale neighbors.** A neighbor not heard for more than 6 days is dimmed and gets a trash button. After a confirmation it is removed from the repeater's neighbor list (`neighbor.remove`) and its sensors are deleted from Home Assistant, the same as *Remove Neighbor* from the row's context menu. A removed neighbor comes back on its own if it is heard again.
+
+### Fixed
+
+- **Start OTA Update / Start Node Debug on MBBS repeaters** now wait up to 60 s for the repeater's reply instead of 20 s. The repeater answers only after joining WiFi, so on a slow connection the page did not open and the panel reported no reply.
+
 ## [0.8.19] - 2026-10-11
 
 ### Added

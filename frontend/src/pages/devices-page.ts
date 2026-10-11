@@ -14,6 +14,10 @@ import { attachDialogA11y } from '../utils/dialog-a11y';
 
 /** How long to wait for a managed device's reply to a CLI command. */
 const REMOTE_REPLY_TIMEOUT_MS = 20000;
+/** "start ota" / "start debug" reply only after the repeater has joined WiFi. */
+const WEB_PAGE_REPLY_TIMEOUT_MS = 60000;
+/** Neighbors not heard for this long get a remove (trash) button. */
+const STALE_NEIGHBOR_MS = 6 * 24 * 3600 * 1000;
 
 /** One line of the values that matter in a node's status response. */
 export function statusSummary(response: string): string {
@@ -324,6 +328,19 @@ export class DevicesPage extends LitElement {
       .neighbor-table tbody tr {
         cursor: context-menu;
       }
+
+      .neighbor-table tr.stale td:not(.trash-cell) { opacity: 0.55; }
+      .neighbor-table td.trash-cell { width: 1%; text-align: right; padding-top: 2px; padding-bottom: 2px; }
+      .trash-btn {
+        display: inline-flex;
+        border: none;
+        border-radius: 4px;
+        padding: 3px;
+        background: transparent;
+        color: var(--error-color, #db4437);
+        cursor: pointer;
+      }
+      .trash-btn:hover { background: rgba(219, 68, 55, 0.12); }
 
       .neighbor-table tbody tr:hover {
         background: var(--table-row-alternative-background-color, rgba(255,255,255,0.05));
@@ -1039,11 +1056,13 @@ export class DevicesPage extends LitElement {
               <th>SNR</th>
               <th>Seen (48h)</th>
               <th>Last Heard</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
             ${state.neighbors.map(n => html`
-              <tr @contextmenu=${(e: MouseEvent) => this._onNeighborRightClick(e, n, device.pubkey_prefix)}
+              <tr class=${this._neighborStaleDays(n) !== null ? 'stale' : ''}
+                  @contextmenu=${(e: MouseEvent) => this._onNeighborRightClick(e, n, device.pubkey_prefix)}
                   ${longPress(() => this._onNeighborRightClick(new MouseEvent('contextmenu'), n, device.pubkey_prefix))}>
                 <td><code>${n.name && n.name !== n.pubkey_prefix.substring(0, 6).toUpperCase() ? `${n.name} (${n.pubkey_prefix.substring(0, 6).toUpperCase()})` : n.pubkey_prefix.substring(0, 6).toUpperCase()}</code></td>
                 <td class=${n.snr > 5 ? 'snr-good' : n.snr >= 0 ? 'snr-fair' : 'snr-poor'}>
@@ -1059,6 +1078,12 @@ export class DevicesPage extends LitElement {
                   </span>
                 </td>
                 <td>${this._formatRelativeTime(n.last_seen)}</td>
+                <td class="trash-cell">${this._neighborStaleDays(n) !== null ? html`
+                  <button class="trash-btn" title="Not heard for over 6 days — remove"
+                          aria-label="Remove ${n.name || n.pubkey_prefix}"
+                          @click=${(e: Event) => { e.stopPropagation(); this._confirmRemoveNeighbor(n, device.pubkey_prefix); }}>
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+                  </button>` : nothing}</td>
               </tr>
             `)}
           </tbody>
@@ -1247,7 +1272,9 @@ export class DevicesPage extends LitElement {
    * REMOTE_REPLY_TIMEOUT_MS for it and show it. Resolves to that reply, or
    * null when the command failed or nothing came back.
    */
-  private async _executeRemoteAction(device: ManagedDevice, command: string): Promise<string | null> {
+  private async _executeRemoteAction(
+    device: ManagedDevice, command: string, replyTimeoutMs = REMOTE_REPLY_TIMEOUT_MS,
+  ): Promise<string | null> {
     if (!this.hass) return null;
     const key = `${device.pubkey_prefix}:${command}`;
     if (this._remoteBusy.has(key)) return null;
@@ -1258,7 +1285,7 @@ export class DevicesPage extends LitElement {
     const prefix = device.pubkey_prefix.toLowerCase();
     let unsub: (() => void) | undefined;
     const reply = new Promise<string | null>((resolve) => {
-      const timer = window.setTimeout(() => resolve(null), REMOTE_REPLY_TIMEOUT_MS);
+      const timer = window.setTimeout(() => resolve(null), replyTimeoutMs);
       this.hass!.connection
         .subscribeEvents((event) => {
           const d = event.data as Record<string, unknown>;
@@ -1289,7 +1316,7 @@ export class DevicesPage extends LitElement {
         this._showStatusMessage(`${device.name}: ${text}`, 'success');
       } else {
         this._showStatusMessage(
-          `${device.name}: ${command} → ${sent} — no reply within ${REMOTE_REPLY_TIMEOUT_MS / 1000} s ` +
+          `${device.name}: ${command} → ${sent} — no reply within ${replyTimeoutMs / 1000} s ` +
           `(it may still arrive in the device's chat)`, 'error');
       }
       return text;
@@ -1317,7 +1344,7 @@ export class DevicesPage extends LitElement {
       tab.document.body.style.font = '15px system-ui, sans-serif';
       tab.document.body.textContent = `${label}: waiting for ${device.name} to join WiFi and send its address…`;
     }
-    const reply = await this._executeRemoteAction(device, command);
+    const reply = await this._executeRemoteAction(device, command, WEB_PAGE_REPLY_TIMEOUT_MS);
     const url = reply?.match(/https?:\/\/[^\s)]+/)?.[0];
     if (!url) {
       tab?.close();
@@ -1575,6 +1602,25 @@ export class DevicesPage extends LitElement {
       `Remove neighbor ${name}?`,
       'This will remove the neighbor from the repeater and delete its sensors from HA. This cannot be undone.',
       () => this._executeRemoveNeighbor(repeaterPubkey, neighborPubkey, name),
+    );
+  }
+
+  /** Whole days since the neighbor was last heard, or null when it was heard recently (or never parsed). */
+  private _neighborStaleDays(n: NeighborInfo): number | null {
+    const heard = Date.parse(n.last_seen);
+    if (Number.isNaN(heard)) return null;
+    const age = Date.now() - heard;
+    return age > STALE_NEIGHBOR_MS ? Math.floor(age / (24 * 3600 * 1000)) : null;
+  }
+
+  private _confirmRemoveNeighbor(n: NeighborInfo, repeaterPubkey: string) {
+    const name = n.name || n.pubkey_prefix;
+    const days = this._neighborStaleDays(n);
+    this._confirmActionDialog(
+      `Remove neighbor ${name}?`,
+      `Not heard for ${days} days. It will be removed from the repeater's neighbor list and its sensors deleted from HA. ` +
+      'If it is heard again it comes back on its own.',
+      () => this._executeRemoveNeighbor(repeaterPubkey, n.pubkey_prefix, name),
     );
   }
 
