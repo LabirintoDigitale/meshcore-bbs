@@ -172,3 +172,7 @@ MeshCore BBS is based on **[meshcore-ha-chat](https://github.com/mwolter805/mesh
 ## License
 
 MIT — see [LICENSE](LICENSE). Original work © 2026 Matt Wolter; modifications © 2026 Labirintodigitale.
+
+---
+
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/W4M829BGBC)
