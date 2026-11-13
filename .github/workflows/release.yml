@@ -1,0 +1,55 @@
+name: Release
+
+# Publishes the GitHub release (and its tag) for the version in manifest.json
+# when that version reaches main and has no release yet. HACS offers updates
+# from releases, so a version bump pushed to main is all a release needs.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Read version
+        id: version
+        run: |
+          manifest=$(jq -r .version custom_components/meshcore_bbs/manifest.json)
+          package=$(jq -r .version frontend/package.json)
+          if [ "$manifest" != "$package" ]; then
+            echo "::error::manifest.json ($manifest) and frontend/package.json ($package) versions differ"
+            exit 1
+          fi
+          echo "version=$manifest" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub release if missing
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          if gh release view "v$VERSION" >/dev/null 2>&1; then
+            echo "v$VERSION already released"
+            exit 0
+          fi
+          # Release notes: this version's CHANGELOG section, without its heading.
+          awk -v v="$VERSION" '
+            index($0, "## [" v "]") == 1 { on = 1; next }
+            on && /^## \[/ { exit }
+            on && !started && $0 == "" { next }
+            on { started = 1; print }
+          ' CHANGELOG.md > notes.md
+          if [ ! -s notes.md ]; then
+            echo "::error::No CHANGELOG.md section for $VERSION"
+            exit 1
+          fi
+          gh release create "v$VERSION" --target "$GITHUB_SHA" --title "$VERSION" --notes-file notes.md
