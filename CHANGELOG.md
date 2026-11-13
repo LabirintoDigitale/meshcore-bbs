@@ -4,6 +4,12 @@ All notable changes to **MeshCore BBS for Home Assistant** are documented here. 
 
 ## [Unreleased]
 
+## [0.8.24] - 2026-11-13
+
+### Added
+
+- **Option to show the panel to administrators only.** Settings → Devices & services → MeshCore BBS → Configure → *Show the panel to administrators only*. When on, the MeshCore BBS entry in the sidebar is hidden from users who are not administrators (and they cannot open the page). Takes effect at once, no restart; other users may need to reload the page. Off by default, so nothing changes for existing installs.
+
 ## [0.8.23] - 2026-10-11
 
 ### Added

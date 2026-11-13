@@ -61,6 +61,8 @@ MESSAGE_STORE_IDLE_EVICTION_SECONDS: Final = 300  # 5 minutes
 # Config-entry option keys (read from entry.options with the defaults above).
 OPT_MAX_MESSAGES_PER_CONVERSATION: Final = "max_messages_per_conversation"
 OPT_MESSAGE_RETENTION_DAYS: Final = "message_retention_days"
+# Show the sidebar panel to administrators only.
+OPT_ADMIN_ONLY_PANEL: Final = "admin_only_panel"
 
 # ─── Constants used by the lifted ws_api.py / utils helpers ─────────────────
 # HA entity-domain string used by helpers that build entity_ids for binary

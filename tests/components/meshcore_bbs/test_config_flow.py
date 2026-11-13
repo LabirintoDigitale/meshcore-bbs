@@ -35,6 +35,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.meshcore_bbs import config_flow
 from custom_components.meshcore_bbs.const import (
+    OPT_ADMIN_ONLY_PANEL,
     OPT_MAX_MESSAGES_PER_CONVERSATION,
     OPT_MESSAGE_RETENTION_DAYS,
 )
@@ -134,10 +135,13 @@ async def test_options_flow_coerces_floats_to_ints(hass: HomeAssistant) -> None:
     assert result["data"] == {
         OPT_MAX_MESSAGES_PER_CONVERSATION: 250,
         OPT_MESSAGE_RETENTION_DAYS: 30,
+        OPT_ADMIN_ONLY_PANEL: False,
     }
-    assert all(isinstance(v, int) for v in result["data"].values()), (
+    numbers = [result["data"][OPT_MAX_MESSAGES_PER_CONVERSATION],
+               result["data"][OPT_MESSAGE_RETENTION_DAYS]]
+    assert all(type(v) is int for v in numbers), (
         "OptionsFlow must coerce NumberSelector floats to int — "
-        f"got types {[type(v).__name__ for v in result['data'].values()]}"
+        f"got types {[type(v).__name__ for v in numbers]}"
     )
 
 

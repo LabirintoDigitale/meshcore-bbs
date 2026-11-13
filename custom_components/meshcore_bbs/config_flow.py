@@ -22,6 +22,7 @@ from homeassistant.config_entries import ConfigEntry, OptionsFlow
 from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers.selector import (
+    BooleanSelector,
     NumberSelector,
     NumberSelectorConfig,
     NumberSelectorMode,
@@ -31,6 +32,7 @@ from homeassistant.loader import IntegrationNotFound, async_get_integration
 from .const import (
     DEFAULT_MAX_MESSAGES_PER_CONVERSATION,
     DEFAULT_MESSAGE_RETENTION_DAYS,
+    OPT_ADMIN_ONLY_PANEL,
     OPT_MAX_MESSAGES_PER_CONVERSATION,
     OPT_MESSAGE_RETENTION_DAYS,
 )
@@ -98,6 +100,9 @@ class MeshCoreBbsOptionsFlow(OptionsFlow):
                 OPT_MESSAGE_RETENTION_DAYS: int(
                     user_input[OPT_MESSAGE_RETENTION_DAYS]
                 ),
+                OPT_ADMIN_ONLY_PANEL: bool(
+                    user_input.get(OPT_ADMIN_ONLY_PANEL, False)
+                ),
             }
             return self.async_create_entry(title="", data=cleaned)
 
@@ -132,6 +137,10 @@ class MeshCoreBbsOptionsFlow(OptionsFlow):
                         mode=NumberSelectorMode.BOX,
                     ),
                 ),
+                vol.Required(
+                    OPT_ADMIN_ONLY_PANEL,
+                    default=current.get(OPT_ADMIN_ONLY_PANEL, False),
+                ): BooleanSelector(),
             }
         )
 

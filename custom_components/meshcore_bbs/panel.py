@@ -53,7 +53,7 @@ PANEL_TITLE = "MeshCore BBS"
 PANEL_URL_PATH = "meshcore-bbs"
 
 
-async def async_register_panel(hass: HomeAssistant) -> None:
+async def async_register_panel(hass: HomeAssistant, admin_only: bool = False) -> None:
     """Register the MeshCore BBS sidebar panel.
 
     Static-path registration is gated on the module-level
@@ -62,6 +62,9 @@ async def async_register_panel(hass: HomeAssistant) -> None:
     The sidebar entry, by contrast, is registered per call here and torn
     down by `async_remove_panel` on last-entry unload, matching HA's
     `frontend` panel-lifecycle convention.
+
+    ``admin_only`` hides the sidebar entry (and the page) from users who
+    are not administrators.
     """
     global _static_path_registered
     if not _static_path_registered:
@@ -87,7 +90,7 @@ async def async_register_panel(hass: HomeAssistant) -> None:
                 "module_url": module_url,
             }
         },
-        require_admin=False,
+        require_admin=admin_only,
     )
     _LOGGER.debug("Registered MeshCore BBS sidebar panel")
 

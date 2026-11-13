@@ -15,14 +15,16 @@
     "step": {
       "init": {
         "title": "MeshCore BBS options",
-        "description": "Tune how long the message store retains conversation history. Changes take effect on the next message save and at the next Home Assistant restart.",
+        "description": "Tune how long the message store retains conversation history, and who sees the panel. Retention changes take effect on the next message save and at the next Home Assistant restart; the panel setting applies at once (other users may need to reload the page).",
         "data": {
           "max_messages_per_conversation": "Max messages per conversation",
-          "message_retention_days": "Message retention (days)"
+          "message_retention_days": "Message retention (days)",
+          "admin_only_panel": "Show the panel to administrators only"
         },
         "data_description": {
           "max_messages_per_conversation": "When a conversation exceeds this number, the oldest messages are trimmed first. Range: 50 – 5000. Default: 500.",
-          "message_retention_days": "Messages older than this are pruned at startup and during periodic cleanup. Range: 1 – 365. Default: 90."
+          "message_retention_days": "Messages older than this are pruned at startup and during periodic cleanup. Range: 1 – 365. Default: 90.",
+          "admin_only_panel": "When on, the MeshCore BBS entry in the sidebar is hidden from users who are not administrators."
         }
       }
     }

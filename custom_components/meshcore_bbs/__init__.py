@@ -41,6 +41,7 @@ from .const import (
     EVENT_MESHCORE_DISCONNECTED,
     EVENT_MESHCORE_MESSAGE,
     MESHCORE_DOMAIN,
+    OPT_ADMIN_ONLY_PANEL,
 )
 from .bbs import Bbs
 from .bbs_ws import async_register_bbs_commands
@@ -193,8 +194,10 @@ async def async_setup_entry(
     # this is also one-per-config-entry, but the guard protects against
     # accidental re-registration if that invariant ever changes.
     if not bucket.get("_panel_registered"):
-        await async_register_panel(hass)
+        admin_only = bool(entry.options.get(OPT_ADMIN_ONLY_PANEL, False))
+        await async_register_panel(hass, admin_only)
         bucket["_panel_registered"] = True
+        bucket["_panel_admin_only"] = admin_only
         _LOGGER.debug("MeshCore BBS panel registered")
 
     # Unread tracker is a process-wide singleton (not per-entry) — the
@@ -377,6 +380,7 @@ async def async_unload_entry(
         if bucket.get("_panel_registered"):
             await async_remove_panel(hass)
             bucket.pop("_panel_registered", None)
+            bucket.pop("_panel_admin_only", None)
             _LOGGER.debug("MeshCore BBS panel removed (last entry unloaded)")
         # WS commands live for the lifetime of the HA process — there's
         # no public unregister API. _ws_registered stays so a subsequent
@@ -720,7 +724,16 @@ async def _async_options_updated(
     on the next save. The retention-window threshold, however, is only
     applied during ``cleanup_old_messages`` — re-run it now so a tighter
     retention window prunes immediately rather than at next HA startup.
+
+    The admin-only panel setting re-registers the sidebar entry at once.
     """
+    bucket = hass.data.get(DOMAIN, {})
+    admin_only = bool(entry.options.get(OPT_ADMIN_ONLY_PANEL, False))
+    if bucket.get("_panel_registered") and bucket.get("_panel_admin_only") != admin_only:
+        await async_remove_panel(hass)
+        await async_register_panel(hass, admin_only)
+        bucket["_panel_admin_only"] = admin_only
+
     store = _resolve_store(hass, entry.entry_id)
     if store is None:
         return
